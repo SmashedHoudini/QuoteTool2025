@@ -1,0 +1,637 @@
+import React, { useState, useMemo, useEffect } from 'react';
+import { 
+  Plus, 
+  Trash2, 
+  Smartphone, 
+  Tablet, 
+  Watch, 
+  Home, 
+  ShieldCheck, 
+  Gift, 
+  ChevronRight, 
+  Eye, 
+  Settings,
+  X,
+  CheckCircle2,
+  Smartphone as DeviceIcon,
+  Edit2
+} from 'lucide-react';
+
+/**
+ * BRAND CONSTANTS
+ * Adhering to the "Veritas + Horizon" design philosophy.
+ * Note: All Caps is strictly prohibited. Use Sentence case.
+ */
+const COLORS = {
+  red: '#f50a23',
+  stone: '#f3ede0',
+  neon: '#f5ff1e',
+  coral: '#ff3c2d',
+  black: '#000000',
+  white: '#ffffff',
+};
+
+const SMARTPHONE_PLANS = [
+  { name: 'Unlimited Welcome', costs: [75, 65, 50, 40], autopay: 10 },
+  { name: 'Unlimited Plus', costs: [90, 80, 65, 55], autopay: 10, discountSlots: 1 },
+  { name: 'Unlimited Ultimate', costs: [100, 90, 75, 65], autopay: 10, discountSlots: 2 },
+];
+
+const TABLET_PLANS = [
+  { name: 'Welcome', price: 20, discounted: 10 },
+  { name: 'Unlimited', price: 40, discounted: 20 },
+  { name: 'Unlimited Plus', price: 50, discounted: 25 },
+];
+
+const WATCH_PLANS = [
+  { name: 'Unlimited', price: 15, discounted: 7.5 },
+  { name: 'Unlimited Plus', price: 25, discounted: 12.5 },
+];
+
+const HOME_INTERNET_PLANS = [
+  { name: 'LTE Home', price: 60, mhDiscount: 15, autopay: 10 },
+  { name: 'LTE Home Plus', price: 80, mhDiscount: 15, autopay: 10 },
+  { name: '5G Home', price: 60, mhDiscount: 15, autopay: 10 },
+  { name: '5G Home Plus', price: 70, mhDiscount: 15, autopay: 10 },
+  { name: '5G Home Ultimate', price: 85, mhDiscount: 15, autopay: 10 },
+  { name: 'VHI Lite', price: 60, mhDiscount: 15, autopay: 10 },
+];
+
+const PERKS = [
+  { name: 'Disney Bundle', cost: 10 },
+  { name: 'Netflix & HBO Max', cost: 10 },
+  { name: 'Google AI Pro', cost: 10 },
+  { name: 'Apple One Individual', cost: 15 },
+  { name: 'Apple One Family', cost: 20 },
+  { name: 'Apple Music Family', cost: 10 },
+  { name: '100GB Hotspot', cost: 10 },
+  { name: 'YouTube Premium', cost: 10 },
+  { name: 'Unlimited Cloud Storage', cost: 10 },
+  { name: 'Verizon Family Plus', cost: 10 },
+  { name: 'Second Number', cost: 10 },
+  { name: '3 TravelPass Days', cost: 10 },
+  { name: 'Fox One', cost: 15 },
+];
+
+const PROTECTION = {
+  vmpAccountMax: 68,
+  vmpSmartphone: 19,
+  vmpTablet: 16,
+};
+
+const App = () => {
+  const [view, setView] = useState('rep'); 
+  const [lines, setLines] = useState([]);
+  const [multiDeviceProtection, setMultiDeviceProtection] = useState(false);
+  const [activePerkLineId, setActivePerkLineId] = useState(null);
+  const [activeHardwareLineId, setActiveHardwareLineId] = useState(null);
+  const [editingLabelId, setEditingLabelId] = useState(null);
+
+  // Initialize with a smartphone line if empty
+  useEffect(() => {
+    if (lines.length === 0) addLine('Smartphone');
+  }, []);
+
+  const addLine = (type) => {
+    let defaultPlan = '';
+    if (type === 'Smartphone') defaultPlan = SMARTPHONE_PLANS[0].name;
+    if (type === 'Tablet') defaultPlan = TABLET_PLANS[0].name;
+    if (type === 'Watch') defaultPlan = WATCH_PLANS[0].name;
+    if (type === 'Home Internet') defaultPlan = HOME_INTERNET_PLANS[0].name;
+
+    const newLine = {
+      id: Math.random().toString(36).substr(2, 9),
+      label: `Line ${lines.length + 1}`,
+      type,
+      planName: defaultPlan,
+      deviceName: '',
+      devicePrice: 0,
+      promoCredit: 0,
+      perks: [],
+      individualProtection: false,
+    };
+
+    setLines([...lines, newLine]);
+  };
+
+  const removeLine = (id) => setLines(lines.filter(l => l.id !== id));
+  
+  const updateLine = (id, updates) => {
+    setLines(lines.map(l => {
+      if (l.id === id) {
+        const newLine = { ...l, ...updates };
+        // If type changed, reset the plan name to a valid default for that type
+        if (updates.type && updates.type !== l.type) {
+          if (updates.type === 'Smartphone') newLine.planName = SMARTPHONE_PLANS[0].name;
+          if (updates.type === 'Tablet') newLine.planName = TABLET_PLANS[0].name;
+          if (updates.type === 'Watch') newLine.planName = WATCH_PLANS[0].name;
+          if (updates.type === 'Home Internet') newLine.planName = HOME_INTERNET_PLANS[0].name;
+        }
+        return newLine;
+      }
+      return l;
+    }));
+  };
+
+  const togglePerk = (lineId, perkName) => {
+    setLines(lines.map(l => {
+      if (l.id === lineId) {
+        const hasPerk = l.perks.includes(perkName);
+        return { ...l, perks: hasPerk ? l.perks.filter(p => p !== perkName) : [...l.perks, perkName] };
+      }
+      return l;
+    }));
+  };
+
+  const calculations = useMemo(() => {
+    const smartphoneLines = lines.filter(l => l.type === 'Smartphone');
+    const spCount = smartphoneLines.length;
+    const pricingTierIndex = Math.min(spCount - 1, 3);
+
+    let totalDiscountSlots = 0;
+    smartphoneLines.forEach(l => {
+      const plan = SMARTPHONE_PLANS.find(p => p.name === l.planName);
+      if (plan?.discountSlots) totalDiscountSlots += (plan.discountSlots * 1);
+    });
+
+    const processedLines = lines.map(line => {
+      let planBase = 0;
+      let autopaySaving = 0;
+      let mhSaving = 0;
+
+      // Autopay is now included by default for calculation logic
+      if (line.type === 'Smartphone') {
+        const plan = SMARTPHONE_PLANS.find(p => p.name === line.planName);
+        planBase = plan ? plan.costs[pricingTierIndex] : 0;
+        autopaySaving = 10;
+      } 
+      else if (line.type === 'Home Internet') {
+        const plan = HOME_INTERNET_PLANS.find(p => p.name === line.planName);
+        planBase = plan?.price || 0;
+        autopaySaving = 10;
+        if (spCount > 0) mhSaving = 15;
+      }
+      else if (line.type === 'Tablet') {
+        const plan = TABLET_PLANS.find(p => p.name === line.planName);
+        planBase = plan?.price || 0;
+      }
+      else if (line.type === 'Watch') {
+        const plan = WATCH_PLANS.find(p => p.name === line.planName);
+        planBase = plan?.price || 0;
+      }
+
+      const perkCost = line.perks.reduce((acc, pName) => acc + (PERKS.find(p => p.name === pName)?.cost || 0), 0);
+      
+      let protectionCost = 0;
+      if (!multiDeviceProtection && line.individualProtection) {
+        if (line.type === 'Smartphone' || line.type === 'Watch') protectionCost = PROTECTION.vmpSmartphone;
+        if (line.type === 'Tablet') protectionCost = PROTECTION.vmpTablet;
+      }
+
+      const monthlyInstallment = line.devicePrice / 36;
+      const monthlyPromo = line.promoCredit / 36;
+      const deviceMonthly = Math.max(0, monthlyInstallment - monthlyPromo);
+
+      return {
+        ...line,
+        planBase,
+        autopaySaving,
+        mhSaving,
+        perkCost,
+        protectionCost,
+        deviceMonthly,
+        monthlyInstallment,
+        monthlyPromo,
+        finalPlan: planBase - autopaySaving - mhSaving
+      };
+    });
+
+    // Apply 50% Connected Device discounts based on slots
+    let slotsRemaining = totalDiscountSlots;
+    const finalLines = processedLines.map(l => {
+      if ((l.type === 'Tablet' || l.type === 'Watch') && slotsRemaining > 0) {
+        slotsRemaining--;
+        return { 
+          ...l, 
+          isDiscounted: true, 
+          finalPlan: l.planBase * 0.5,
+          totalLineCost: (l.planBase * 0.5) + l.perkCost + l.protectionCost + l.deviceMonthly
+        };
+      }
+      return {
+        ...l,
+        totalLineCost: l.finalPlan + l.perkCost + l.protectionCost + l.deviceMonthly
+      };
+    });
+
+    const vmpAccountCost = multiDeviceProtection ? Math.min(lines.length * 19, 68) : 0;
+    const subtotal = finalLines.reduce((acc, l) => acc + l.totalLineCost, 0);
+    const total = subtotal + vmpAccountCost;
+
+    // Calculate total without autopay for transparency
+    const totalAutopaySavings = finalLines.reduce((acc, l) => acc + l.autopaySaving, 0);
+    const totalWithoutAutopay = total + totalAutopaySavings;
+
+    return { processedLines: finalLines, total, vmpAccountCost, totalWithoutAutopay };
+  }, [lines, multiDeviceProtection]);
+
+  const activePerkLine = lines.find(l => l.id === activePerkLineId);
+  const activeHardwareLine = lines.find(l => l.id === activeHardwareLineId);
+
+  return (
+    <div className="min-h-screen font-sans" style={{ backgroundColor: COLORS.stone }}>
+      {/* Navigation Header */}
+      <nav className="sticky top-0 z-50 px-6 py-4 border-b border-black/10 flex justify-between items-center bg-stone-100/80 backdrop-blur-md">
+        <div className="flex items-center gap-2">
+          <span className="text-xl font-black tracking-tight text-black">verizon</span>
+        </div>
+        
+        <div className="flex gap-2 p-1 bg-black/5 rounded-full">
+          <button 
+            onClick={() => setView('rep')} 
+            className={`px-6 py-2 rounded-full text-sm font-bold transition-all flex items-center gap-2 ${view === 'rep' ? 'bg-black text-white' : 'text-black/60 hover:text-black'}`}
+          >
+            <Settings size={16} /> Rep view
+          </button>
+          <button 
+            onClick={() => setView('customer')} 
+            className={`px-6 py-2 rounded-full text-sm font-bold transition-all flex items-center gap-2 ${view === 'customer' ? 'bg-black text-white' : 'text-black/60 hover:text-black'}`}
+          >
+            <Eye size={16} /> Customer view
+          </button>
+        </div>
+      </nav>
+
+      <main className="max-w-6xl mx-auto p-6 pb-32">
+        {view === 'rep' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="lg:col-span-2 space-y-6">
+              <header>
+                <h1 className="text-4xl font-black text-black leading-tight">Quote builder.</h1>
+                <p className="text-black/60 font-medium">Configure lines and hardware for your customer.</p>
+              </header>
+
+              {/* Account Toggles */}
+              <div className="bg-white p-6 border border-black/10 rounded-2xl">
+                <div className="flex items-center justify-between p-4 border border-black/5 rounded-xl max-w-md">
+                  <div>
+                    <p className="font-bold text-black">Multi-Device Protection</p>
+                    <p className="text-xs text-black/50">${calculations.vmpAccountCost}/mo total coverage</p>
+                  </div>
+                  <button 
+                    onClick={() => setMultiDeviceProtection(!multiDeviceProtection)} 
+                    className={`w-12 h-6 rounded-full relative transition-colors ${multiDeviceProtection ? 'bg-[#f50a23]' : 'bg-gray-300'}`}
+                  >
+                    <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${multiDeviceProtection ? 'right-1' : 'left-1'}`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Line Item Cards */}
+              <div className="space-y-4">
+                {calculations.processedLines.map((line) => (
+                  <div key={line.id} className="bg-white border border-black/10 rounded-2xl overflow-hidden shadow-sm">
+                    <div className="p-5 flex flex-col md:flex-row gap-6">
+                      
+                      {/* Column 1: Identity & Plan */}
+                      <div className="w-full md:w-48 space-y-3">
+                        <div className="flex items-center gap-2">
+                          {editingLabelId === line.id ? (
+                            <input 
+                              autoFocus
+                              value={line.label}
+                              className="text-sm font-bold text-black border-b border-black outline-none bg-transparent w-full"
+                              onBlur={() => setEditingLabelId(null)}
+                              onKeyDown={(e) => e.key === 'Enter' && setEditingLabelId(null)}
+                              onChange={(e) => updateLine(line.id, { label: e.target.value })}
+                            />
+                          ) : (
+                            <div className="flex items-center gap-2 group cursor-pointer" onClick={() => setEditingLabelId(line.id)}>
+                              <span className="text-sm font-bold text-black/60 group-hover:text-black transition-colors">{line.label}</span>
+                              <Edit2 size={10} className="text-black/20 group-hover:text-black" />
+                            </div>
+                          )}
+                        </div>
+                        <select 
+                          value={line.type} 
+                          onChange={(e) => updateLine(line.id, { type: e.target.value, perks: [] })} 
+                          className="w-full px-3 py-2 bg-stone-50 border border-black/5 rounded-lg text-sm font-bold outline-none"
+                        >
+                          <option>Smartphone</option><option>Tablet</option><option>Watch</option><option>Home Internet</option>
+                        </select>
+                        <select 
+                          value={line.planName} 
+                          onChange={(e) => updateLine(line.id, { planName: e.target.value })} 
+                          className="w-full px-3 py-2 bg-stone-50 border border-black/5 rounded-lg text-sm font-bold outline-none"
+                        >
+                          {line.type === 'Smartphone' && SMARTPHONE_PLANS.map(p => <option key={p.name}>{p.name}</option>)}
+                          {line.type === 'Tablet' && TABLET_PLANS.map(p => <option key={p.name}>{p.name}</option>)}
+                          {line.type === 'Watch' && WATCH_PLANS.map(p => <option key={p.name}>{p.name}</option>)}
+                          {line.type === 'Home Internet' && HOME_INTERNET_PLANS.map(p => <option key={p.name}>{p.name}</option>)}
+                        </select>
+                      </div>
+
+                      {/* Column 2: Hardware Focus */}
+                      <div className="flex-1 border-l border-black/5 pl-0 md:pl-6 space-y-3">
+                        <span className="text-xs font-bold text-black/40 block">Hardware</span>
+                        {line.type !== 'Home Internet' ? (
+                          <div className="flex flex-col md:flex-row gap-4 items-center">
+                            <button 
+                              onClick={() => setActiveHardwareLineId(line.id)} 
+                              className="w-full md:w-auto px-4 py-3 bg-stone-50 border border-black/5 rounded-xl hover:bg-black hover:text-white transition-all text-left"
+                            >
+                               <div className="flex items-center gap-3">
+                                 <DeviceIcon size={18} />
+                                 <div className="flex flex-col">
+                                   <span className="text-sm font-bold">{line.deviceName || 'Select device'}</span>
+                                   <span className="text-[10px] opacity-60">Manage hardware</span>
+                                 </div>
+                               </div>
+                            </button>
+                            <div className="flex flex-col">
+                               <span className="text-[10px] text-black/40 font-bold">Monthly device installment</span>
+                               <span className="text-xl font-black">${line.deviceMonthly.toFixed(2)}</span>
+                               {(line.devicePrice > 0 || line.promoCredit > 0) && (
+                                 <div className="flex gap-2 text-[10px] font-bold text-black/40">
+                                   <span>Retail: ${line.monthlyInstallment.toFixed(2)}</span>
+                                   <span className="text-[#f50a23]">Promo: -${line.monthlyPromo.toFixed(2)}</span>
+                                 </div>
+                               )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="h-full flex items-center text-black/20 italic text-sm">Not applicable</div>
+                        )}
+                      </div>
+
+                      {/* Column 3: Add-ons & Removal */}
+                      <div className="w-full md:w-48 flex flex-col gap-2 border-l border-black/5 pl-0 md:pl-6">
+                        <span className="text-xs font-bold text-black/40">Add-ons</span>
+                        {(line.type === 'Smartphone' || line.type === 'Home Internet') && (
+                          <button 
+                            onClick={() => setActivePerkLineId(line.id)} 
+                            className="flex items-center justify-between px-3 py-2 bg-[#f5ff1e]/20 hover:bg-[#f5ff1e]/40 border border-[#f5ff1e] rounded-lg text-xs font-bold transition-colors"
+                          >
+                            <span className="flex items-center gap-2"><Gift size={14}/> Perks ({line.perks.length})</span>
+                            <ChevronRight size={14} />
+                          </button>
+                        )}
+                        {!multiDeviceProtection && (
+                          <button 
+                            onClick={() => updateLine(line.id, { individualProtection: !line.individualProtection })} 
+                            className={`flex items-center gap-2 px-3 py-2 border rounded-lg text-xs font-bold transition-all ${line.individualProtection ? 'bg-black text-white border-black' : 'bg-stone-50 border-black/5 text-black/60'}`}
+                          >
+                            <ShieldCheck size={14} /> {line.individualProtection ? 'VMP protected' : 'Add protection'}
+                          </button>
+                        )}
+                        <button 
+                          onClick={() => removeLine(line.id)} 
+                          className="mt-auto flex items-center justify-center gap-2 px-3 py-2 text-xs font-bold text-[#f50a23] hover:bg-[#f50a23]/5 rounded-lg transition-colors"
+                        >
+                          <Trash2 size={14} /> Remove line
+                        </button>
+                      </div>
+
+                      {/* Column 4: Line Total */}
+                      <div className="w-full md:w-32 flex flex-col items-end justify-center border-l border-black/5 pl-0 md:pl-6 bg-stone-50/50 -my-5 py-5 pr-5">
+                        <span className="text-[10px] font-bold text-black/40">Line total</span>
+                        <span className="text-2xl font-black">${line.totalLineCost.toFixed(2)}</span>
+                        {line.isDiscounted && <span className="text-[9px] text-[#f50a23] font-bold text-right leading-tight">50% discount applied</span>}
+                      </div>
+
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button 
+                onClick={() => addLine('Smartphone')} 
+                className="w-full py-8 border-2 border-dashed border-black/10 rounded-2xl flex flex-col items-center justify-center gap-2 text-black/40 hover:text-[#f50a23] hover:border-[#f50a23]/30 hover:bg-[#f50a23]/5 transition-all group"
+              >
+                <div className="w-10 h-10 rounded-full bg-black/5 group-hover:bg-[#f50a23]/10 flex items-center justify-center transition-all"><Plus size={20} /></div>
+                <span className="font-bold">Add another line</span>
+              </button>
+            </div>
+
+            {/* Sidebar Summary */}
+            <div className="lg:col-span-1">
+              <div className="sticky top-24 space-y-6">
+                <div className="bg-black text-white p-8 rounded-3xl shadow-xl">
+                  <h3 className="text-stone-400 text-xs font-bold uppercase tracking-wider mb-4">Estimated monthly</h3>
+                  <div className="flex items-baseline gap-1 mb-6">
+                    <span className="text-5xl font-black">${calculations.total.toFixed(2)}</span>
+                    <span className="text-stone-400 font-bold">/mo</span>
+                  </div>
+                  <div className="space-y-3 text-sm border-t border-white/10 pt-6">
+                    <div className="flex justify-between">
+                      <span className="text-stone-400">Total lines</span>
+                      <span className="font-bold">{lines.length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-stone-400">Auto Pay savings</span>
+                      <span className="font-bold text-[#f5ff1e]">-${(calculations.processedLines.reduce((a, b) => a + b.autopaySaving, 0)).toFixed(2)}</span>
+                    </div>
+                    {multiDeviceProtection && (
+                      <div className="flex justify-between">
+                        <span className="text-stone-400">Multi-Device Protection</span>
+                        <span className="font-bold">${calculations.vmpAccountCost.toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                  <button 
+                    onClick={() => setView('customer')} 
+                    className="w-full mt-8 py-4 bg-[#f50a23] hover:bg-red-600 text-white rounded-xl font-black text-lg transition-all transform active:scale-95 flex items-center justify-center gap-2"
+                  >
+                    Generate customer quote <ChevronRight size={20} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* Customer View */
+          <div className="max-w-4xl mx-auto space-y-12 animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <header className="text-center space-y-4">
+              <h1 className="text-6xl font-black text-black tracking-tight">Your new plan.</h1>
+              <p className="text-xl text-black/60 font-medium">Clear, reliable, and built for you.</p>
+            </header>
+
+            <div className="bg-white rounded-[40px] shadow-2xl overflow-hidden border border-black/5">
+              <div className="bg-[#f50a23] p-12 text-white flex flex-col md:flex-row justify-between items-center text-center md:text-left">
+                <div className="flex-1">
+                  <h2 className="text-2xl font-black mb-1">Monthly total</h2>
+                  <p className="text-white/70 text-sm font-medium">with Auto Pay & Paper-free billing</p>
+                  <p className="text-white/60 text-xs mt-2 font-medium italic">Estimated at ${calculations.totalWithoutAutopay.toFixed(2)}/mo without Auto Pay discount</p>
+                </div>
+                <div className="text-right">
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-8xl font-black tracking-tighter">${calculations.total.toFixed(2)}</span>
+                    <span className="text-2xl font-bold opacity-60">/mo</span>
+                  </div>
+                </div>
+              </div>
+              <div className="p-12 space-y-12">
+                <div>
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-black/40 mb-8 border-b border-black/5 pb-4">Line details</h3>
+                  <div className="space-y-10">
+                    {calculations.processedLines.map((line) => (
+                      <div key={line.id} className="flex flex-col md:flex-row gap-8 items-start">
+                        <div className="w-12 h-12 rounded-2xl bg-stone-100 flex items-center justify-center shrink-0">
+                          {line.type === 'Smartphone' ? <Smartphone size={24}/> : line.type === 'Tablet' ? <Tablet size={24}/> : line.type === 'Watch' ? <Watch size={24}/> : <Home size={24}/>}
+                        </div>
+                        <div className="flex-1 w-full">
+                          <div className="flex justify-between items-start w-full">
+                            <div>
+                              <h4 className="text-xl font-black">{line.label}: {line.planName}</h4>
+                              {line.deviceName && <p className="text-black/60 font-medium">{line.deviceName}</p>}
+                              {line.perks.length > 0 && (
+                                <p className="text-xs font-bold text-black/40 mt-1">Includes: {line.perks.join(', ')}</p>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <span className="font-black text-2xl">${line.totalLineCost.toFixed(2)}</span>
+                              {line.isDiscounted && <p className="text-[#f50a23] text-[10px] font-bold">50% connected discount applied</p>}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {multiDeviceProtection && (
+                   <div className="p-6 bg-stone-100 rounded-3xl flex justify-between items-center">
+                     <div className="flex items-center gap-4">
+                       <ShieldCheck className="text-[#f50a23]" size={28} />
+                       <div>
+                         <p className="font-black">Multi-Device Protection (Account Level)</p>
+                         <p className="text-black/50 text-xs">Total coverage for all devices</p>
+                       </div>
+                     </div>
+                     <p className="text-xl font-black">${calculations.vmpAccountCost.toFixed(2)}</p>
+                   </div>
+                )}
+              </div>
+              
+              <div className="p-12 bg-stone-50 border-t border-black/5">
+                <div className="flex items-center gap-3">
+                  <CheckCircle2 className="text-[#f50a23] shrink-0" size={24} />
+                  <p className="text-black font-bold text-sm leading-relaxed">
+                    This is an estimate only. Promotions may change. This quote is only guaranteed for today.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* Hardware Configuration Modal */}
+      {activeHardwareLineId && activeHardwareLine && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActiveHardwareLineId(null)} />
+          <div className="relative w-full max-w-lg bg-white rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-8 border-b border-black/5 bg-stone-50 flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-black text-black">Hardware settings.</h2>
+                <p className="text-black/50 font-medium">Configure device installments for {activeHardwareLine.label}.</p>
+              </div>
+              <button onClick={() => setActiveHardwareLineId(null)} className="p-2 hover:bg-black/5 rounded-full transition-colors"><X size={24} /></button>
+            </div>
+            <div className="p-8 space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-black/40">Device name</label>
+                <input 
+                  value={activeHardwareLine.deviceName} 
+                  onChange={(e) => updateLine(activeHardwareLineId, { deviceName: e.target.value })} 
+                  placeholder="e.g. iPhone 16 Pro 256GB" 
+                  className="w-full px-4 py-3 bg-stone-50 border border-black/10 rounded-xl outline-none focus:border-black font-bold" 
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-black/40">Retail price</label>
+                  <input 
+                    type="number" 
+                    value={activeHardwareLine.devicePrice || ''} 
+                    onChange={(e) => updateLine(activeHardwareLineId, { devicePrice: parseFloat(e.target.value) || 0 })} 
+                    placeholder="0.00" 
+                    className="w-full px-4 py-3 bg-stone-50 border border-black/10 rounded-xl outline-none focus:border-black font-bold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-[#f50a23]">Promo credit</label>
+                  <input 
+                    type="number" 
+                    value={activeHardwareLine.promoCredit || ''} 
+                    onChange={(e) => updateLine(activeHardwareLineId, { promoCredit: parseFloat(e.target.value) || 0 })} 
+                    placeholder="0.00" 
+                    className="w-full px-4 py-3 bg-stone-50 border border-black/10 rounded-xl outline-none focus:border-[#f50a23] font-bold text-[#f50a23] [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                  />
+                </div>
+              </div>
+              <div className="p-6 bg-black text-white rounded-2xl flex justify-between items-center">
+                 <div>
+                   <p className="text-[10px] font-bold opacity-60">Calculated net monthly</p>
+                   <p className="text-2xl font-black">${((activeHardwareLine.devicePrice - activeHardwareLine.promoCredit)/36).toFixed(2)}</p>
+                 </div>
+                 <div className="text-right text-[10px] font-bold opacity-60">Over 36 months</div>
+              </div>
+            </div>
+            <div className="p-8 border-t border-black/5 bg-stone-50">
+              <button onClick={() => setActiveHardwareLineId(null)} className="w-full py-4 bg-black text-white rounded-xl font-black hover:bg-stone-800 transition-all">Done</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Perks Configuration Modal */}
+      {activePerkLineId && activePerkLine && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setActivePerkLineId(null)} />
+          <div className="relative w-full max-w-2xl bg-white rounded-[32px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-8 border-b border-black/5 flex justify-between items-center bg-stone-50">
+              <div>
+                <h2 className="text-2xl font-black text-black">Select perks.</h2>
+                <p className="text-black/50 font-medium">Add value to your plan for $10/mo each.</p>
+              </div>
+              <button onClick={() => setActivePerkLineId(null)} className="p-2 hover:bg-black/5 rounded-full transition-colors"><X size={24} /></button>
+            </div>
+            <div className="p-8 max-h-[60vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-4">
+              {PERKS.map(perk => {
+                const isSelected = activePerkLine.perks.includes(perk.name);
+                return (
+                  <button 
+                    key={perk.name} 
+                    onClick={() => togglePerk(activePerkLineId, perk.name)} 
+                    className={`flex items-center justify-between p-4 rounded-2xl border-2 transition-all text-left ${isSelected ? 'border-black bg-black text-white' : 'border-black/5 hover:border-black/20 text-black'}`}
+                  >
+                    <div className="flex flex-col">
+                      <span className="font-bold text-sm">{perk.name}</span>
+                      <span className={`text-[10px] font-bold ${isSelected ? 'text-white/60' : 'text-black/40'}`}>${perk.cost}/mo</span>
+                    </div>
+                    {isSelected && <CheckCircle2 size={18} className="text-[#f5ff1e]" />}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="p-8 border-t border-black/5 bg-stone-50 flex justify-between items-center">
+              <div>
+                <p className="text-[10px] font-bold text-black/40">Total perks</p>
+                <p className="text-2xl font-black">${activePerkLine.perks.length * 10}.00/mo</p>
+              </div>
+              <button 
+                onClick={() => setActivePerkLineId(null)} 
+                className="px-10 py-4 bg-[#f50a23] text-white rounded-xl font-black hover:bg-red-600 transition-all"
+              >
+                Save perks
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default App;
