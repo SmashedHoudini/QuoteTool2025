@@ -213,7 +213,11 @@
 
                     const perkCost = line.perks.reduce((acc, name) => acc + (PERKS.find(p => p.name === name)?.cost || 0), 0);
                     const perkSavingsValue = line.perks.reduce((acc, name) => acc + (PERKS.find(p => p.name === name)?.savings || 0), 0);
-                    const adjSum = line.adjustments.reduce((acc, a) => acc + (parseFloat(a.amount) || 0), 0);
+                    const adjSum = line.adjustments.reduce((acc, a) => {
+                        const val = parseFloat(a.amount) || 0;
+                        return acc + (a.type === 'credit' ? -val : val);
+                    }, 0);
+
                     let protCost = (!multiDeviceProtection && line.individualProtection) ? ((line.type === 'Tablet') ? 16 : 19) : 0;
                     const deviceMonthly = Math.max(0, (line.devicePrice / 36) - (line.promoCredit / 36));
 
@@ -229,11 +233,22 @@
                         discountedAmt = l.planBase * 0.5;
                         isDiscounted = true;
                     }
-                    return { ...l, isDiscounted, connectedDiscountAmt: discountedAmt, totalLineCost: (l.isDiscounted ? (l.planBase - discountedAmt) : l.finalPlan) + l.perkCost + l.protCost + l.deviceMonthly + l.adjSum };
+                    
+                    const actualPlanCost = isDiscounted ? (l.planBase - discountedAmt) : l.finalPlan;
+                    return { 
+                        ...l, 
+                        isDiscounted, 
+                        connectedDiscountAmt: discountedAmt, 
+                        totalLineCost: actualPlanCost + l.perkCost + l.protCost + l.deviceMonthly + l.adjSum 
+                    };
                 });
 
                 const vmpCost = multiDeviceProtection ? Math.min(lines.length * 19, 68) : 0;
-                const accAdjSum = accountAdjustments.reduce((acc, a) => acc + (parseFloat(a.amount) || 0), 0);
+                const accAdjSum = accountAdjustments.reduce((acc, a) => {
+                    const val = parseFloat(a.amount) || 0;
+                    return acc + (a.type === 'credit' ? -val : val);
+                }, 0);
+
                 const total = finalLines.reduce((acc, l) => acc + l.totalLineCost, 0) + vmpCost + accAdjSum;
                 
                 const totalPromos = finalLines.reduce((acc, l) => acc + (l.promoCredit / 36), 0);
@@ -241,7 +256,9 @@
                 const totalAutopay = finalLines.reduce((acc, l) => acc + l.autopaySaving, 0);
                 const totalMHSavings = finalLines.reduce((acc, l) => acc + l.mhSaving, 0);
                 const totalConnectedDiscounts = finalLines.reduce((acc, l) => acc + (l.connectedDiscountAmt || 0), 0);
-                const totalAdjustmentCredits = [...finalLines.flatMap(l => l.adjustments), ...accountAdjustments].reduce((acc, a) => acc + (parseFloat(a.amount) < 0 ? Math.abs(parseFloat(a.amount)) : 0), 0);
+                
+                const allAdjustments = [...finalLines.flatMap(l => l.adjustments), ...accountAdjustments];
+                const totalAdjustmentCredits = allAdjustments.reduce((acc, a) => acc + (a.type === 'credit' ? (parseFloat(a.amount) || 0) : 0), 0);
                 const totalMonthlySavings = totalPromos + totalPerkSavings + totalAutopay + totalMHSavings + totalConnectedDiscounts + totalAdjustmentCredits;
 
                 return { 
@@ -282,12 +299,12 @@
                                             </div>
                                             <button onClick={() => setMultiDeviceProtection(!multiDeviceProtection)} className={`w-11 h-6 rounded-full relative transition-colors ${multiDeviceProtection ? 'bg-verizon-red' : 'bg-gray-300'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${multiDeviceProtection ? 'right-1' : 'left-1'}`} /></button>
                                         </div>
-                                        <button onClick={() => setShowAccountAdj(true)} className="bg-white p-5 border border-black/10 rounded-xl flex items-center justify-between shadow-sm hover:border-black transition-colors">
+                                        <button onClick={() => setShowAccountAdj(true)} className="bg-white p-5 border border-black/10 rounded-xl flex items-center justify-between shadow-sm hover:border-black transition-colors text-black">
                                             <div className="text-left">
-                                                <p className="font-bold text-black text-sm">Account adjustments</p>
-                                                <p className="text-[11px] text-black/50 font-medium">{accountAdjustments.length} adjustment(s) applied</p>
+                                                <p className="font-bold text-sm">Account adjustments</p>
+                                                <p className="text-[11px] opacity-50 font-medium">{accountAdjustments.length} adjustment(s) applied</p>
                                             </div>
-                                            <Icon name="PlusCircle" size={22} className="text-black/40" />
+                                            <Icon name="PlusCircle" size={22} className="opacity-40" />
                                         </button>
                                     </div>
 
@@ -328,8 +345,8 @@
                                                                         <span className="text-[10px] opacity-60 font-medium uppercase tracking-wider">Configure</span>
                                                                     </div>
                                                                 </button>
-                                                                <div className="flex flex-col shrink-0">
-                                                                    <span className="text-[10px] text-black/40 font-bold uppercase tracking-wider">Actual Payment</span>
+                                                                <div className="flex flex-col shrink-0 text-black">
+                                                                    <span className="text-[10px] opacity-40 font-bold uppercase tracking-wider">Actual Payment</span>
                                                                     <span className="text-xl font-black">${line.deviceMonthly.toFixed(2)}</span>
                                                                 </div>
                                                             </div>
@@ -367,9 +384,9 @@
                                             <div className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center group-hover:scale-110 transition-transform"><Icon name="Plus" size={28} /></div>
                                             <span className="font-bold text-lg leading-none">Add another line</span>
                                         </button>
-                                        <button onClick={copyLastLine} className="px-10 py-10 border-2 border-dashed border-black/10 rounded-2xl flex flex-col items-center justify-center gap-3 text-black/40 hover:text-black hover:border-black/20 hover:bg-stone-50 transition-all group">
+                                        <button onClick={copyLastLine} className="px-10 py-10 border-2 border-dashed border-black/10 rounded-2xl flex flex-col items-center justify-center gap-3 text-black/40 hover:text-black hover:border-black/20 hover:bg-stone-50 transition-all group text-black">
                                             <div className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center group-hover:scale-110 transition-transform"><Icon name="Copy" size={24} /></div>
-                                            <span className="font-bold text-sm leading-none">Copy last line</span>
+                                            <span className="font-bold text-sm leading-none opacity-60 group-hover:opacity-100">Copy last line</span>
                                         </button>
                                     </div>
                                 </div>
@@ -398,16 +415,15 @@
                                         <div className="flex-1">
                                             <h2 className="text-2xl font-black mb-1">Monthly total</h2>
                                             <p className="text-white/70 text-base font-medium opacity-90">with Auto Pay & Paper-free billing</p>
-                                            <p className="text-white text-[12px] mt-5 font-bold uppercase tracking-wider bg-black/40 inline-block px-4 py-2 rounded-md shadow-sm border border-white/20">Estimated at ${calculations.totalWithoutAutopay.toFixed(2)}/mo without Auto Pay</p>
+                                            <p className="text-white text-[12px] mt-4 font-bold uppercase tracking-wider bg-black/40 inline-block px-3 py-1.5 rounded-md shadow-sm border border-white/20">Estimated at ${calculations.totalWithoutAutopay.toFixed(2)}/mo without Auto Pay</p>
                                         </div>
                                         <div className="text-right"><div className="flex items-baseline gap-1"><span className="text-7xl font-black tracking-tighter leading-none">${calculations.total.toFixed(2)}</span><span className="text-2xl font-bold opacity-60">/mo</span></div></div>
                                     </div>
                                     
-                                    <div className="p-12 space-y-12">
+                                    <div className="p-12 space-y-12 text-black">
                                         <div>
-                                            <h3 className="text-[11px] font-bold uppercase tracking-widest text-black/30 mb-8 border-b border-black/5 pb-4">Details</h3>
+                                            <h3 className="text-[11px] font-bold uppercase tracking-widest opacity-30 mb-8 border-b border-black/5 pb-4">Details</h3>
                                             <div className="space-y-10">
-                                                {/* Lines Section */}
                                                 {calculations.processedLines.map(line => (
                                                     <div key={line.id} className="flex flex-col md:flex-row gap-10 items-start">
                                                         <div className="w-16 h-16 rounded-[24px] bg-stone-100 flex items-center justify-center shrink-0 shadow-sm border border-black/5">
@@ -416,48 +432,48 @@
                                                         <div className="flex-1 w-full">
                                                             <div className="flex justify-between items-start w-full">
                                                                 <div>
-                                                                    <h4 className="text-2xl font-black text-black leading-tight">{line.label}</h4>
-                                                                    {line.deviceName && <p className="text-lg text-black/60 font-medium mt-1 uppercase tracking-wide">{line.deviceName}</p>}
+                                                                    <h4 className="text-xl font-black leading-tight">{line.label}</h4>
+                                                                    {line.deviceName && <p className="text-lg font-medium mt-1 uppercase tracking-wide opacity-60">{line.deviceName}</p>}
                                                                     
                                                                     <div className="mt-5 space-y-2.5 border-l-4 border-stone-100 pl-6 py-0.5">
-                                                                        <p className="text-base font-medium text-black/50 tracking-tight">
+                                                                        <p className="text-base font-medium opacity-50 tracking-tight">
                                                                             ${line.planBase.toFixed(2)} {line.planName}
                                                                         </p>
                                                                         {line.autopaySaving > 0 && (
-                                                                            <p className="text-base font-medium text-emerald-600 tracking-tight font-bold">
+                                                                            <p className="text-base text-emerald-600 tracking-tight">
                                                                                 -${line.autopaySaving.toFixed(2)} Auto Pay & Paper-free Discount
                                                                             </p>
                                                                         )}
                                                                         {line.mhSaving > 0 && (
-                                                                            <p className="text-base font-medium text-emerald-600 tracking-tight font-bold">
+                                                                            <p className="text-base text-emerald-600 tracking-tight">
                                                                                 -${line.mhSaving.toFixed(2)} Mobile + Home Discount
                                                                             </p>
                                                                         )}
                                                                         {line.isDiscounted && (
-                                                                            <p className="text-base font-medium text-emerald-600 tracking-tight font-bold">
+                                                                            <p className="text-base text-emerald-600 tracking-tight">
                                                                                 -${line.connectedDiscountAmt.toFixed(2)} Connected Device Discount
                                                                             </p>
                                                                         )}
                                                                         {line.devicePrice > 0 && (
-                                                                            <p className="text-base font-medium text-black/50 tracking-tight">
+                                                                            <p className="text-base font-medium opacity-50 tracking-tight">
                                                                                 ${line.deviceMonthly.toFixed(2)} Device Payment
-                                                                                {line.monthlyPromo > 0 && <span className="text-emerald-600 font-bold"> (includes Save ${line.monthlyPromo.toFixed(2)} monthly promo)</span>}
+                                                                                {line.monthlyPromo > 0 && <span className="text-emerald-600"> (includes Save ${line.monthlyPromo.toFixed(2)} monthly promo)</span>}
                                                                             </p>
                                                                         )}
                                                                         {line.perks.map(pName => {
                                                                             const perk = PERKS.find(p => p.name === pName);
-                                                                            return <p key={pName} className="text-base font-medium text-black/50 tracking-tight">${perk?.cost || 10}.00 {pName}</p>;
+                                                                            return <p key={pName} className="text-base font-medium opacity-50 tracking-tight">${perk?.cost || 10}.00 {pName}</p>;
                                                                         })}
                                                                         {line.adjustments.map(adj => (
-                                                                            <p key={adj.id} className={`text-base font-medium tracking-tight ${parseFloat(adj.amount) < 0 ? 'text-emerald-600 font-bold' : 'text-black/50'}`}>
-                                                                                ${parseFloat(adj.amount).toFixed(2)} {adj.label}
+                                                                            <p key={adj.id} className={`text-base tracking-tight ${adj.type === 'credit' ? 'text-emerald-600' : 'opacity-50'}`}>
+                                                                                {adj.type === 'credit' ? '-' : ''}${parseFloat(adj.amount || 0).toFixed(2)} {adj.label}
                                                                             </p>
                                                                         ))}
-                                                                        {line.protCost > 0 && <p className="text-base font-medium text-black/50 tracking-tight">${line.protCost}.00 Device protection</p>}
+                                                                        {line.protCost > 0 && <p className="text-base font-medium opacity-50 tracking-tight">${line.protCost}.00 Device protection</p>}
                                                                     </div>
                                                                 </div>
                                                                 <div className="text-right">
-                                                                    <span className="font-black text-3xl text-black">${line.totalLineCost.toFixed(2)}</span>
+                                                                    <span className="font-black text-3xl">${line.totalLineCost.toFixed(2)}</span>
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -467,27 +483,27 @@
                                                 {(multiDeviceProtection || accountAdjustments.length > 0) && (
                                                     <div className="flex flex-col md:flex-row gap-10 items-start pt-4">
                                                         <div className="w-16 h-16 rounded-[24px] bg-stone-100 flex items-center justify-center shrink-0 border border-black/5">
-                                                            <Icon name="ShieldCheck" size={32} className="text-black/40"/>
+                                                            <Icon name="ShieldCheck" size={32} className="opacity-40"/>
                                                         </div>
-                                                        <div className="flex-1 w-full">
+                                                        <div className="flex-1 w-full text-black">
                                                             <div className="flex justify-between items-start w-full">
                                                                 <div>
-                                                                    <h4 className="text-2xl font-black text-black leading-tight">Account services</h4>
+                                                                    <h4 className="text-2xl font-black leading-tight">Account services</h4>
                                                                     <div className="mt-5 space-y-2.5 border-l-4 border-stone-100 pl-6 py-0.5">
                                                                         {multiDeviceProtection && (
-                                                                            <p className="text-base font-medium text-black/50 tracking-tight">
+                                                                            <p className="text-base font-medium opacity-50 tracking-tight">
                                                                                 ${calculations.vmpCost.toFixed(2)} Multi-Device Protection
                                                                             </p>
                                                                         )}
                                                                         {accountAdjustments.map(adj => (
-                                                                            <p key={adj.id} className={`text-base font-medium tracking-tight ${parseFloat(adj.amount) < 0 ? 'text-emerald-600 font-bold' : 'text-black/50'}`}>
-                                                                                ${parseFloat(adj.amount).toFixed(2)} {adj.label}
+                                                                            <p key={adj.id} className={`text-base tracking-tight ${adj.type === 'credit' ? 'text-emerald-600' : 'opacity-50'}`}>
+                                                                                {adj.type === 'credit' ? '-' : ''}${parseFloat(adj.amount || 0).toFixed(2)} {adj.label}
                                                                             </p>
                                                                         ))}
                                                                     </div>
                                                                 </div>
                                                                 <div className="text-right">
-                                                                    <span className="font-black text-3xl text-black">
+                                                                    <span className="font-black text-3xl">
                                                                         ${(calculations.vmpCost + calculations.accAdjSum).toFixed(2)}
                                                                     </span>
                                                                 </div>
@@ -499,7 +515,7 @@
                                         </div>
                                     </div>
 
-                                    {/* Total Monthly Savings Banner - Emerald Green - SIGNIFICANTLY SMALLER */}
+                                    {/* Total Monthly Savings Banner - Emerald Green - Compact */}
                                     <div className="mx-12 mb-10 p-6 bg-emerald-50 border border-emerald-200 rounded-[32px] flex flex-col md:flex-row justify-between items-center gap-6">
                                         <div className="flex items-center gap-5">
                                             <div className="w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center shrink-0 shadow-sm">
@@ -507,14 +523,14 @@
                                             </div>
                                             <div>
                                                 <h4 className="text-lg font-black text-emerald-950 leading-tight">Monthly savings</h4>
-                                                <p className="text-emerald-900/60 text-sm font-medium opacity-90">Hardware promos, perks, and plan discounts.</p>
+                                                <p className="text-emerald-900/60 text-sm font-medium opacity-90">Includes hardware promos, perks, and discounts.</p>
                                             </div>
                                         </div>
-                                        <div className="text-right shrink-0">
+                                        <div className="text-right shrink-0 text-emerald-950">
                                             <span className="text-4xl font-black text-emerald-600 tracking-tighter leading-none">-${calculations.totalMonthlySavings.toFixed(2)}</span>
-                                            <div className="flex flex-col text-[9px] font-bold text-emerald-900/40 uppercase tracking-[0.2em] mt-2">
-                                                <span>Promos & Perks: -${(calculations.totalPromos + calculations.totalPerkSavings).toFixed(2)}</span>
-                                                <span>Discounts & Credits: -${(calculations.totalAdjustmentCredits + calculations.totalAutopay + calculations.totalMHSavings + calculations.totalConnectedDiscounts).toFixed(2)}</span>
+                                            <div className="flex flex-col text-[9px] font-bold opacity-40 uppercase tracking-[0.2em] mt-2">
+                                                <span>Promos & Perk Value: -${(calculations.totalPromos + calculations.totalPerkSavings).toFixed(2)}</span>
+                                                <span>Discounts & Adjustments: -${(calculations.totalAdjustmentCredits + calculations.totalAutopay + calculations.totalMHSavings + calculations.totalConnectedDiscounts).toFixed(2)}</span>
                                             </div>
                                         </div>
                                     </div>
@@ -530,25 +546,25 @@
 
                     {/* Hardware Modal */}
                     {activeHardwareLineId && activeHardwareLine && (
-                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setActiveHardwareLineId(null)}>
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all" onClick={() => setActiveHardwareLineId(null)}>
                             <div className="relative w-full max-w-md bg-white rounded-[40px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
-                                <div className="p-10 border-b border-black/5 bg-stone-50 flex justify-between items-center">
-                                    <h2 className="text-2xl font-black text-black">Hardware settings.</h2>
-                                    <button onClick={() => setActiveHardwareLineId(null)} className="p-3 hover:bg-black/5 rounded-full transition-colors text-black"><Icon name="X" size={28}/></button>
+                                <div className="p-10 border-b border-black/5 bg-stone-50 flex justify-between items-center text-black">
+                                    <h2 className="text-2xl font-black">Hardware settings.</h2>
+                                    <button onClick={() => setActiveHardwareLineId(null)} className="p-3 hover:bg-black/5 rounded-full transition-colors"><Icon name="X" size={28}/></button>
                                 </div>
                                 <div className="p-10 space-y-8 text-black">
                                     <div className="space-y-3">
-                                        <label className="text-[11px] font-bold uppercase tracking-widest text-black/40">Device name</label>
-                                        <input value={activeHardwareLine.deviceName} onChange={e => updateLine(activeHardwareLineId, { deviceName: e.target.value })} placeholder="e.g. iPhone 16 Pro" className="w-full px-6 py-5 bg-stone-50 border border-black/10 rounded-2xl outline-none font-bold text-lg focus:border-black transition-colors" />
+                                        <label className="text-[11px] font-bold uppercase tracking-widest opacity-40">Device name</label>
+                                        <input value={activeHardwareLine.deviceName} onFocus={e => e.target.select()} onChange={e => updateLine(activeHardwareLineId, { deviceName: e.target.value })} placeholder="e.g. iPhone 16 Pro" className="w-full px-6 py-5 bg-stone-50 border border-black/10 rounded-2xl outline-none font-bold text-lg focus:border-black transition-colors" />
                                     </div>
                                     <div className="grid grid-cols-2 gap-6">
                                         <div className="space-y-3">
-                                            <label className="text-[11px] font-bold uppercase tracking-widest text-black/40">Retail price</label>
-                                            <input type="number" value={activeHardwareLine.devicePrice || ''} onChange={e => updateLine(activeHardwareLineId, { devicePrice: parseFloat(e.target.value) || 0 })} placeholder="0.00" className="w-full px-6 py-5 bg-stone-50 border border-black/10 rounded-2xl font-bold text-lg outline-none focus:border-black" />
+                                            <label className="text-[11px] font-bold uppercase tracking-widest opacity-40">Retail price</label>
+                                            <input type="number" value={activeHardwareLine.devicePrice || ''} onFocus={e => e.target.select()} onChange={e => updateLine(activeHardwareLineId, { devicePrice: parseFloat(e.target.value) || 0 })} placeholder="0.00" className="w-full px-6 py-5 bg-stone-50 border border-black/10 rounded-2xl font-bold text-lg outline-none focus:border-black" />
                                         </div>
                                         <div className="space-y-3">
                                             <label className="text-[11px] font-bold uppercase tracking-widest text-verizon-red">Promo credit</label>
-                                            <input type="number" value={activeHardwareLine.promoCredit || ''} onChange={e => updateLine(activeHardwareLineId, { promoCredit: parseFloat(e.target.value) || 0 })} placeholder="0.00" className="w-full px-6 py-5 bg-stone-50 border border-black/10 rounded-2xl font-bold text-lg text-verizon-red outline-none focus:border-red-500" />
+                                            <input type="number" value={activeHardwareLine.promoCredit || ''} onFocus={e => e.target.select()} onChange={e => updateLine(activeHardwareLineId, { promoCredit: parseFloat(e.target.value) || 0 })} placeholder="0.00" className="w-full px-6 py-5 bg-stone-50 border border-black/10 rounded-2xl font-bold text-lg text-verizon-red outline-none focus:border-red-500" />
                                         </div>
                                     </div>
                                     <div className="p-8 bg-black text-white rounded-[28px] flex justify-between items-center shadow-xl">
@@ -563,49 +579,72 @@
 
                     {/* Adjustment Modal */}
                     {(activeAdjLineId || showAccountAdj) && (
-                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => { setActiveAdjLineId(null); setShowAccountAdj(false); }}>
-                            <div className="relative w-full max-w-lg bg-white rounded-[40px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all" onClick={() => { setActiveAdjLineId(null); setShowAccountAdj(false); }}>
+                            <div className="relative w-full max-w-lg bg-white rounded-[40px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200 text-black" onClick={e => e.stopPropagation()}>
                                 <div className="p-10 border-b border-black/5 bg-stone-50 flex justify-between items-center">
-                                    <h2 className="text-2xl font-black text-black">{showAccountAdj ? 'Account Adjustments' : 'Line Adjustments'}</h2>
-                                    <button onClick={() => { setActiveAdjLineId(null); setShowAccountAdj(false); }} className="p-3 hover:bg-black/5 rounded-full text-black"><Icon name="X" size={28}/></button>
+                                    <h2 className="text-2xl font-black">{showAccountAdj ? 'Account Adjustments' : 'Line Adjustments'}</h2>
+                                    <button onClick={() => { setActiveAdjLineId(null); setShowAccountAdj(false); }} className="p-3 hover:bg-black/5 rounded-full"><Icon name="X" size={28}/></button>
                                 </div>
-                                <div className="p-10 space-y-6 max-h-[60vh] overflow-y-auto">
+                                <div className="p-10 space-y-6 max-h-[60vh] overflow-y-auto text-black">
                                     {(showAccountAdj ? accountAdjustments : (activeAdjLine?.adjustments || [])).map((adj, i) => (
-                                        <div key={adj.id} className="flex gap-4 items-end bg-stone-50 p-5 rounded-2xl border border-black/5">
-                                            <div className="flex-grow space-y-1">
-                                                <label className="text-[10px] font-bold uppercase tracking-widest text-black/40">Label</label>
-                                                <input value={adj.label} onChange={e => {
-                                                    const newVal = e.target.value;
-                                                    if (showAccountAdj) {
-                                                        setAccountAdjustments(prev => prev.map((a, idx) => idx === i ? {...a, label: newVal} : a));
-                                                    } else {
-                                                        setLines(prev => prev.map(l => l.id === activeAdjLineId ? {...l, adjustments: l.adjustments.map((a, idx) => idx === i ? {...a, label: newVal} : a)} : l));
-                                                    }
-                                                }} className="w-full bg-white border border-black/10 px-4 py-3 rounded-lg text-sm font-bold focus:border-black outline-none" />
+                                        <div key={adj.id} className="flex flex-col gap-4 bg-stone-50 p-6 rounded-3xl border border-black/5">
+                                            <div className="flex gap-2 p-1 bg-black/5 rounded-xl self-start">
+                                                <button 
+                                                    onClick={() => {
+                                                        if (showAccountAdj) {
+                                                            setAccountAdjustments(prev => prev.map((a, idx) => idx === i ? {...a, type: 'credit'} : a));
+                                                        } else {
+                                                            setLines(prev => prev.map(l => l.id === activeAdjLineId ? {...l, adjustments: l.adjustments.map((a, idx) => idx === i ? {...a, type: 'credit'} : a)} : l));
+                                                        }
+                                                    }}
+                                                    className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${adj.type === 'credit' ? 'bg-emerald-500 text-white shadow-sm' : 'text-black/40 hover:text-black'}`}
+                                                >Credit</button>
+                                                <button 
+                                                    onClick={() => {
+                                                        if (showAccountAdj) {
+                                                            setAccountAdjustments(prev => prev.map((a, idx) => idx === i ? {...a, type: 'charge'} : a));
+                                                        } else {
+                                                            setLines(prev => prev.map(l => l.id === activeAdjLineId ? {...l, adjustments: l.adjustments.map((a, idx) => idx === i ? {...a, type: 'charge'} : a)} : l));
+                                                        }
+                                                    }}
+                                                    className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest transition-all ${adj.type === 'charge' ? 'bg-black text-white shadow-sm' : 'text-black/40 hover:text-black'}`}
+                                                >Charge</button>
                                             </div>
-                                            <div className="w-28 space-y-1">
-                                                <label className="text-[10px] font-bold uppercase tracking-widest text-black/40">Amount</label>
-                                                <input type="number" value={adj.amount} placeholder="0.00" onChange={e => {
-                                                    const newVal = e.target.value;
+                                            <div className="flex gap-4 items-end">
+                                                <div className="flex-grow space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Label</label>
+                                                    <input value={adj.label} onFocus={e => e.target.select()} placeholder="Adjustment Name" onChange={e => {
+                                                        const newVal = e.target.value;
+                                                        if (showAccountAdj) {
+                                                            setAccountAdjustments(prev => prev.map((a, idx) => idx === i ? {...a, label: newVal} : a));
+                                                        } else {
+                                                            setLines(prev => prev.map(l => l.id === activeAdjLineId ? {...l, adjustments: l.adjustments.map((a, idx) => idx === i ? {...a, label: newVal} : a)} : l));
+                                                        }
+                                                    }} className="w-full bg-white border border-black/10 px-4 py-3 rounded-xl text-sm font-bold focus:border-black outline-none" />
+                                                </div>
+                                                <div className="w-28 space-y-1">
+                                                    <label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Amount</label>
+                                                    <input type="number" value={adj.amount} onFocus={e => e.target.select()} placeholder="0.00" onChange={e => {
+                                                        const newVal = e.target.value;
+                                                        if (showAccountAdj) {
+                                                            setAccountAdjustments(prev => prev.map((a, idx) => idx === i ? {...a, amount: newVal} : a));
+                                                        } else {
+                                                            setLines(prev => prev.map(l => l.id === activeAdjLineId ? {...l, adjustments: l.adjustments.map((a, idx) => idx === i ? {...a, amount: newVal} : a)} : l));
+                                                        }
+                                                    }} className="w-full bg-white border border-black/10 px-4 py-3 rounded-xl text-sm font-bold focus:border-black outline-none" />
+                                                </div>
+                                                <button onClick={() => {
                                                     if (showAccountAdj) {
-                                                        setAccountAdjustments(prev => prev.map((a, idx) => idx === i ? {...a, amount: newVal} : a));
+                                                        setAccountAdjustments(prev => prev.filter((_, idx) => idx !== i));
                                                     } else {
-                                                        setLines(prev => prev.map(l => l.id === activeAdjLineId ? {...l, adjustments: l.adjustments.map((a, idx) => idx === i ? {...a, amount: newVal} : a)} : l));
+                                                        setLines(prev => prev.map(l => l.id === activeAdjLineId ? {...l, adjustments: l.adjustments.filter((_, idx) => idx !== i)} : l));
                                                     }
-                                                }} className="w-full bg-white border border-black/10 px-4 py-3 rounded-lg text-sm font-bold focus:border-black outline-none" />
+                                                }} className="p-3 text-verizon-red hover:bg-red-50 rounded-lg transition-colors"><Icon name="Trash2" size={20}/></button>
                                             </div>
-                                            <button onClick={() => {
-                                                if (showAccountAdj) {
-                                                    setAccountAdjustments(prev => prev.filter((_, idx) => idx !== i));
-                                                } else {
-                                                    setLines(prev => prev.map(l => l.id === activeAdjLineId ? {...l, adjustments: l.adjustments.filter((_, idx) => idx !== i)} : l));
-                                                }
-                                            }} className="p-3 text-verizon-red hover:bg-red-50 rounded-lg transition-colors"><Icon name="Trash2" size=
-{20}/></button>
                                         </div>
                                     ))}
                                     <button onClick={() => {
-                                        const newAdj = { id: Math.random().toString(36).substr(2, 9), label: 'New Credit/Charge', amount: '0' };
+                                        const newAdj = { id: Math.random().toString(36).substr(2, 9), label: '', amount: '', type: 'credit' };
                                         if (showAccountAdj) setAccountAdjustments(prev => [...prev, newAdj]);
                                         else setLines(prev => prev.map(l => l.id === activeAdjLineId ? {...l, adjustments: [...l.adjustments, newAdj]} : l));
                                     }} className="w-full py-6 border-2 border-dashed border-black/10 rounded-2xl text-black/40 hover:text-black font-bold flex items-center justify-center gap-3 transition-all text-base uppercase tracking-widest">
@@ -619,10 +658,10 @@
 
                     {/* Perks Modal */}
                     {activePerkLineId && activePerkLine && (
-                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setActivePerkLineId(null)}>
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-all text-black" onClick={() => setActivePerkLineId(null)}>
                             <div className="relative w-full max-w-2xl bg-white rounded-[40px] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200" onClick={e => e.stopPropagation()}>
                                 <div className="p-10 border-b border-black/5 bg-stone-50 flex justify-between items-center">
-                                    <h2 className="text-2xl font-black text-black">Select perks.</h2>
+                                    <h2 className="text-2xl font-black">Select perks.</h2>
                                     <button onClick={() => setActivePerkLineId(null)} className="p-3 hover:bg-black/5 rounded-full transition-colors text-black"><Icon name="X" size={28}/></button>
                                 </div>
                                 <div className="p-10 max-h-[50vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -631,7 +670,7 @@
                                         return (
                                             <button key={perk.name} onClick={() => togglePerk(activePerkLineId, perk.name)} className={`flex items-center justify-between p-6 rounded-3xl border-2 transition-all ${isSel ? 'border-black bg-black text-white shadow-md' : 'border-black/5 text-black hover:border-black/20 hover:bg-stone-50'}`}>
                                                 <div className="flex flex-col text-left">
-                                                    <span className="font-bold text-lg">{perk.name}</span>
+                                                    <span className="font-bold text-lg leading-tight">{perk.name}</span>
                                                     <span className={`text-xs font-medium mt-1 ${isSel ? 'text-white/60' : 'text-black/40'}`}>
                                                         {`$${perk.cost}/mo`}
                                                     </span>
@@ -642,7 +681,10 @@
                                     })}
                                 </div>
                                 <div className="p-8 border-t border-black/5 flex justify-between items-center text-black bg-stone-50">
-                                    <div><p className="text-[10px] font-bold text-black/40 uppercase tracking-widest">Total Perks</p><p className="text-3xl font-black tracking-tight">${activePerkLine.perks.length * 10}.00/mo</p></div>
+                                    {/* Total Perks fixed logic below */}
+                                    <div><p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Total Perks</p><p className="text-3xl font-black tracking-tight">
+                                        ${activePerkLine.perks.reduce((acc, pName) => acc + (PERKS.find(p => p.name === pName)?.cost || 0), 0).toFixed(2)}/mo
+                                    </p></div>
                                     <button onClick={() => setActivePerkLineId(null)} className="px-14 py-5 bg-verizon-red text-white rounded-2xl font-black text-xl shadow-lg hover:scale-[1.01] active:scale-95 transition-all">Save perks</button>
                                 </div>
                             </div>
