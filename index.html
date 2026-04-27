@@ -441,11 +441,11 @@
                                     <p className="text-sm md:text-base print:text-xs text-black/60 font-medium italic opacity-70">Reliable, clear, and built for you.</p>
                                 </header>
                                 <div className="bg-white rounded-[40px] shadow-xl print:shadow-none print:border-none overflow-hidden border border-black/5">
-                                    <div className="bg-verizon-red print:bg-transparent print:border-b-2 print:border-black p-8 md:p-10 print:p-4 print:pb-3 text-white print:text-black flex flex-col md:flex-row justify-between items-center print:items-end text-center md:text-left gap-4 print:gap-0">
-                                        <div className="flex-1 order-2 md:order-1"><h2 className="text-lg md:text-xl print:text-base font-black mb-1">Monthly total</h2><p className="text-white/70 print:text-black/70 text-[11px] md:text-xs print:text-[9px] font-medium uppercase tracking-widest opacity-80">with Auto Pay & Paper-free billing</p></div>
-                                        <div className="text-right text-white print:text-black order-1 md:order-2">
-                                            <div className="flex items-baseline justify-center md:justify-end gap-1"><span className="text-5xl md:text-6xl print:text-3xl font-black tracking-tighter leading-none">${calculations.total.toFixed(2)}</span><span className="text-xl print:text-lg font-bold opacity-40">/mo</span></div>
-                                            <div className="flex flex-col items-center md:items-end mt-2"><p className="text-white print:text-black text-[10px] print:text-[8px] uppercase tracking-widest font-bold opacity-60">+ Taxes & Surcharges</p><p className="text-white print:text-black font-black text-[11px] print:text-[9px] uppercase tracking-widest opacity-100 mt-1">Estimated ${calculations.totalWithoutAutopay.toFixed(2)} without Auto Pay</p></div>
+                                    <div className="bg-verizon-red print:bg-transparent print:border-b-2 print:border-black p-8 md:p-10 print:p-4 print:pb-3 text-white print:text-black flex flex-col md:flex-row print:flex-row justify-between items-center print:items-end text-center md:text-left print:text-left gap-4 print:gap-0">
+                                        <div className="flex-1 order-2 md:order-1 print:order-1"><h2 className="text-lg md:text-xl print:text-base font-black mb-1">Monthly total</h2><p className="text-white/70 print:text-black/70 text-[11px] md:text-xs print:text-[9px] font-medium uppercase tracking-widest opacity-80">with Auto Pay & Paper-free billing</p></div>
+                                        <div className="text-right text-white print:text-black order-1 md:order-2 print:order-2">
+                                            <div className="flex items-baseline justify-center md:justify-end print:justify-end gap-1"><span className="text-5xl md:text-6xl print:text-3xl font-black tracking-tighter leading-none">${calculations.total.toFixed(2)}</span><span className="text-xl print:text-lg font-bold opacity-40">/mo</span></div>
+                                            <div className="flex flex-col items-center md:items-end print:items-end mt-2"><p className="text-white print:text-black text-[10px] print:text-[8px] uppercase tracking-widest font-bold opacity-60">+ Taxes & Surcharges</p><p className="text-white print:text-black font-black text-[11px] print:text-[9px] uppercase tracking-widest opacity-100 mt-1">Estimated ${calculations.totalWithoutAutopay.toFixed(2)} without Auto Pay</p></div>
                                         </div>
                                     </div>
                                     
@@ -454,7 +454,7 @@
                                             <h3 className="text-[10px] print:text-[8px] font-bold uppercase tracking-widest opacity-30 print:opacity-60 mb-6 print:mb-3 border-b border-black/5 print:border-black/20 pb-2">Line Breakdown</h3>
                                             <div className="space-y-8 print:space-y-3">
                                                 {calculations.processedLines.map(line => (
-                                                    <div key={line.id} className="flex flex-col md:flex-row gap-8 print:gap-3 items-start break-inside-avoid">
+                                                    <div key={line.id} className="flex flex-col md:flex-row print:flex-row gap-8 print:gap-3 items-start break-inside-avoid">
                                                         <div className="w-10 h-10 print:w-8 print:h-8 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-black/5 print:border-none print:bg-transparent"><Icon name={line.type === 'Smartphone' ? 'Smartphone' : line.type === 'Tablet' ? 'Tablet' : line.type === 'Watch' ? 'Watch' : 'Home'} size={24} className="print:w-5 print:h-5 print:opacity-60" /></div>
                                                         <div className="flex-1 w-full text-black">
                                                             <div className="flex justify-between items-start w-full">
@@ -485,7 +485,7 @@
                                                     </div>
                                                 ))}
                                                 {(multiDeviceProtection || accountAdjustments.length > 0) && (
-                                                    <div className="flex flex-col md:flex-row gap-8 print:gap-3 items-start pt-6 print:pt-3 border-t border-black/5 text-black break-inside-avoid">
+                                                    <div className="flex flex-col md:flex-row print:flex-row gap-8 print:gap-3 items-start pt-6 print:pt-3 border-t border-black/5 text-black break-inside-avoid">
                                                         <div className="w-10 h-10 print:w-8 print:h-8 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-black/5 opacity-40 print:border-none print:bg-transparent"><Icon name="ShieldCheck" size={24} className="print:w-5 print:h-5"/></div>
                                                         <div className="flex-1 w-full text-black">
                                                             <div className="flex justify-between items-start w-full">
@@ -504,7 +504,7 @@
                                                     </div>
                                                 )}
                                                 {oneTimeCredits.length > 0 && (
-                                                    <div className="flex flex-col md:flex-row gap-8 print:gap-3 items-start pt-6 print:pt-3 border-t border-black/5 text-black break-inside-avoid">
+                                                    <div className="flex flex-col md:flex-row print:flex-row gap-8 print:gap-3 items-start pt-6 print:pt-3 border-t border-black/5 text-black break-inside-avoid">
                                                         <div className="w-10 h-10 print:w-8 print:h-8 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-black/5 opacity-40 print:border-none print:bg-transparent"><Icon name="Gift" size={24} className="print:w-5 print:h-5"/></div>
                                                         <div className="flex-1 w-full text-black">
                                                             <div className="flex justify-between items-start w-full">
@@ -536,17 +536,17 @@
                                                 <button onClick={() => setCustomerViewMode('simple')} className={`px-3 md:px-4 py-1.5 rounded-lg text-[9px] md:text-[10px] font-bold uppercase transition-all ${customerViewMode === 'simple' ? 'bg-black text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Simple</button>
                                             </div>
 
-                                            <div className="flex flex-col sm:flex-row flex-wrap gap-2 print:gap-4 print:w-full print:justify-end">
-                                                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs print:p-2 print:border-none print:bg-stone-50">
+                                            <div className="flex flex-col sm:flex-row print:flex-row flex-wrap gap-2 print:gap-4 print:w-full print:justify-end">
+                                                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs print:max-w-xs print:p-2 print:border-none print:bg-stone-50">
                                                     <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0 text-white print:bg-transparent print:border print:border-black/20 print:text-black print:w-6 print:h-6"><Icon name="Smartphone" size={14} className="print:w-3 print:h-3"/></div>
                                                     <div className="text-right"><p className="text-[9px] md:text-[10px] print:text-[8px] font-black uppercase opacity-60 leading-none mb-0.5 print:text-black">Device Savings</p><span className="text-xl md:text-2xl print:text-base font-black text-emerald-600 print:text-black tracking-tighter leading-none">${calculations.totalFullDeviceSavings.toFixed(2)}</span></div>
                                                 </div>
-                                                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs print:p-2 print:border-none print:bg-stone-50">
+                                                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs print:max-w-xs print:p-2 print:border-none print:bg-stone-50">
                                                     <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0 text-white print:bg-transparent print:border print:border-black/20 print:text-black print:w-6 print:h-6"><Icon name="DollarSign" size={16} className="print:w-3 print:h-3"/></div>
                                                     <div className="text-right"><p className="text-[9px] md:text-[10px] print:text-[8px] font-black uppercase opacity-60 leading-none mb-0.5 print:text-black">Monthly Savings</p><span className="text-xl md:text-2xl print:text-base font-black text-emerald-600 print:text-black tracking-tighter leading-none">${calculations.totalMonthlySavings.toFixed(2)}</span></div>
                                                 </div>
                                                 {calculations.totalOneTimeCredits > 0 && (
-                                                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs print:p-2 print:border-none print:bg-stone-50">
+                                                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs print:max-w-xs print:p-2 print:border-none print:bg-stone-50">
                                                         <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0 text-white print:bg-transparent print:border print:border-black/20 print:text-black print:w-6 print:h-6"><Icon name="Gift" size={16} className="print:w-3 print:h-3"/></div>
                                                         <div className="text-right"><p className="text-[9px] md:text-[10px] print:text-[8px] font-black uppercase opacity-60 leading-none mb-0.5 print:text-black">One-Time Credits</p><span className="text-xl md:text-2xl print:text-base font-black text-emerald-600 print:text-black tracking-tighter leading-none">${calculations.totalOneTimeCredits.toFixed(2)}</span></div>
                                                     </div>
