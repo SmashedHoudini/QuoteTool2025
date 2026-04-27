@@ -49,8 +49,6 @@
                 margin: 0; 
             }
             body {
-                /* Add a safe margin back for the actual page content */
-                margin: 0.5in; 
                 background-color: #ffffff !important;
                 -webkit-print-color-adjust: exact;
                 print-color-adjust: exact;
@@ -437,7 +435,7 @@
                             </div>
                         ) : (
                             /* CUSTOMER VIEW */
-                            <div className="max-w-4xl mx-auto space-y-6 print:space-y-4 animate-in fade-in slide-in-from-bottom-6 duration-500 pb-20 print:pb-0 text-black print:p-0 print:m-0 print:w-full print:max-w-none">
+                            <div className="max-w-4xl mx-auto space-y-6 print:space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-500 pb-20 print:pb-0 text-black print:px-8 print:py-12 print:m-0 print:w-full print:max-w-none">
                                 <header className="text-center space-y-1">
                                     <h1 className="text-2xl md:text-3xl print:text-xl font-black text-black tracking-tight leading-none">{customerName.trim() ? <>Hey {customerName.trim().split(' ')[0]},<br />Here's Your Verizon Quote.</> : "Your Verizon Quote."}</h1>
                                     <p className="text-sm md:text-base print:text-xs text-black/60 font-medium italic opacity-70">Reliable, clear, and built for you.</p>
