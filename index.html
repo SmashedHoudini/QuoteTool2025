@@ -42,6 +42,17 @@
         input[type=number] {
             touch-action: manipulation;
         }
+
+        @media print {
+            @page {
+                margin: 0.5in;
+            }
+            body {
+                background-color: #ffffff !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
+        }
     </style>
 </head>
 <body>
@@ -122,6 +133,8 @@
             const [activeHardwareLineId, setActiveHardwareLineId] = useState(null);
             const [activeAdjLineId, setActiveAdjLineId] = useState(null);
             const [showAccountAdj, setShowAccountAdj] = useState(false);
+            const [oneTimeCredits, setOneTimeCredits] = useState([]);
+            const [showOneTimeCreditsModal, setShowOneTimeCreditsModal] = useState(false);
             const [editingLabelId, setEditingLabelId] = useState(null);
 
             useEffect(() => { if (lines.length === 0) addLine('Smartphone'); }, []);
@@ -277,14 +290,16 @@
                 const allAdjustments = [...finalLines.flatMap(l => l.adjustments), ...accountAdjustments];
                 const totalAdjustmentCredits = allAdjustments.reduce((acc, a) => acc + (a.type === 'credit' ? (parseFloat(a.amount) || 0) : 0), 0);
                 
+                const totalOneTimeCredits = oneTimeCredits.reduce((acc, c) => acc + (parseFloat(c.amount) || 0), 0);
+
                 const totalMonthlySavings = totalMonthlyPromoCredits + totalAutopay + totalMHSavings + totalConnectedDiscounts + totalAdjustmentCredits;
 
                 return { 
                     processedLines: finalLines, total, vmpCost, accAdjSum,
                     totalWithoutAutopay: total + totalAutopay,
-                    totalFullDeviceSavings, totalMonthlySavings, totalAutopay, totalMHSavings, totalAdjustmentCredits, totalConnectedDiscounts
+                    totalFullDeviceSavings, totalMonthlySavings, totalAutopay, totalMHSavings, totalAdjustmentCredits, totalConnectedDiscounts, totalOneTimeCredits
                 };
-            }, [lines, multiDeviceProtection, accountAdjustments]);
+            }, [lines, multiDeviceProtection, accountAdjustments, oneTimeCredits]);
 
             const activeHardwareLine = lines.find(l => l.id === activeHardwareLineId);
             const activePerkLine = lines.find(l => l.id === activePerkLineId);
@@ -292,7 +307,7 @@
 
             return (
                 <div className="min-h-screen">
-                    <nav className="sticky top-0 z-50 px-4 md:px-6 py-4 border-b border-black/10 flex justify-between items-center bg-stone-100/80 backdrop-blur-md text-black">
+                    <nav className="sticky top-0 z-50 px-4 md:px-6 py-4 border-b border-black/10 flex justify-between items-center bg-stone-100/80 backdrop-blur-md text-black print:hidden">
                         <div className="flex items-center">
                             <span className="text-lg md:text-xl font-black tracking-tight">verizon</span>
                             <span className="mx-2 md:mx-3 h-5 w-px bg-black/20"></span>
@@ -304,7 +319,7 @@
                         </div>
                     </nav>
 
-                    <main className="max-w-[1340px] mx-auto p-4 md:p-6 mb-24 text-black">
+                    <main className="max-w-[1340px] mx-auto p-4 md:p-6 mb-24 text-black print:p-0 print:m-0 print:max-w-none">
                         {view === 'rep' ? (
                             <div className="space-y-6">
                                 <header>
@@ -321,13 +336,17 @@
                                     )}
                                 </header>
 
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="bg-white p-5 border border-black/10 rounded-xl flex items-center justify-between shadow-sm">
                                         <div><p className="font-bold text-sm">Multi-Device Protection</p><p className="text-[11px] opacity-50 font-medium">${calculations.vmpCost.toFixed(2)}/mo total</p></div>
                                         <button onClick={() => setMultiDeviceProtection(!multiDeviceProtection)} className={`w-11 h-6 rounded-full relative transition-colors ${multiDeviceProtection ? 'bg-verizon-red' : 'bg-gray-300'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${multiDeviceProtection ? 'right-1' : 'left-1'}`} /></button>
                                     </div>
                                     <button onClick={() => setShowAccountAdj(true)} className="bg-white p-5 border border-black/10 rounded-xl flex items-center justify-between shadow-sm hover:border-black transition-colors text-left">
                                         <div><p className="font-bold text-sm">Account adjustments</p><p className="text-[11px] opacity-50 font-medium">{accountAdjustments.length} adjustment(s)</p></div>
+                                        <Icon name="PlusCircle" size={22} className="opacity-40" />
+                                    </button>
+                                    <button onClick={() => setShowOneTimeCreditsModal(true)} className="bg-white p-5 border border-black/10 rounded-xl flex items-center justify-between shadow-sm hover:border-black transition-colors text-left">
+                                        <div><p className="font-bold text-sm">One-time credits</p><p className="text-[11px] opacity-50 font-medium">{oneTimeCredits.length} credit(s)</p></div>
                                         <Icon name="PlusCircle" size={22} className="opacity-40" />
                                     </button>
                                 </div>
@@ -412,17 +431,17 @@
                             </div>
                         ) : (
                             /* CUSTOMER VIEW */
-                            <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-500 pb-20 text-black">
+                            <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-500 pb-20 text-black print:p-0 print:m-0 print:w-full print:max-w-none">
                                 <header className="text-center space-y-1">
                                     <h1 className="text-2xl md:text-3xl font-black text-black tracking-tight leading-none">{customerName.trim() ? <>Hey {customerName.trim().split(' ')[0]},<br />Here's Your Verizon Quote.</> : "Your Verizon Quote."}</h1>
                                     <p className="text-sm md:text-base text-black/60 font-medium italic opacity-70">Reliable, clear, and built for you.</p>
                                 </header>
-                                <div className="bg-white rounded-[40px] shadow-xl overflow-hidden border border-black/5">
-                                    <div className="bg-verizon-red p-8 md:p-10 text-white flex flex-col md:flex-row justify-between items-center text-center md:text-left gap-4">
-                                        <div className="flex-1 order-2 md:order-1"><h2 className="text-lg md:text-xl font-black mb-1">Monthly total</h2><p className="text-white/70 text-[11px] md:text-xs font-medium uppercase tracking-widest opacity-80">with Auto Pay & Paper-free billing</p></div>
-                                        <div className="text-right text-white order-1 md:order-2">
+                                <div className="bg-white rounded-[40px] shadow-xl print:shadow-none print:border-none overflow-hidden border border-black/5">
+                                    <div className="bg-verizon-red print:bg-transparent print:border-b-4 print:border-black p-8 md:p-10 text-white print:text-black flex flex-col md:flex-row justify-between items-center text-center md:text-left gap-4">
+                                        <div className="flex-1 order-2 md:order-1"><h2 className="text-lg md:text-xl font-black mb-1">Monthly total</h2><p className="text-white/70 print:text-black/70 text-[11px] md:text-xs font-medium uppercase tracking-widest opacity-80">with Auto Pay & Paper-free billing</p></div>
+                                        <div className="text-right text-white print:text-black order-1 md:order-2">
                                             <div className="flex items-baseline justify-center md:justify-end gap-1"><span className="text-5xl md:text-6xl font-black tracking-tighter leading-none">${calculations.total.toFixed(2)}</span><span className="text-xl font-bold opacity-40">/mo</span></div>
-                                            <div className="flex flex-col items-center md:items-end mt-2"><p className="text-white text-[10px] uppercase tracking-widest font-bold opacity-60">+ Taxes & Surcharges</p><p className="text-white font-black text-[11px] uppercase tracking-widest opacity-100 mt-1">Estimated ${calculations.totalWithoutAutopay.toFixed(2)} without Auto Pay</p></div>
+                                            <div className="flex flex-col items-center md:items-end mt-2"><p className="text-white print:text-black text-[10px] uppercase tracking-widest font-bold opacity-60">+ Taxes & Surcharges</p><p className="text-white print:text-black font-black text-[11px] uppercase tracking-widest opacity-100 mt-1">Estimated ${calculations.totalWithoutAutopay.toFixed(2)} without Auto Pay</p></div>
                                         </div>
                                     </div>
                                     
@@ -431,7 +450,7 @@
                                             <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-6 border-b border-black/5 pb-2">Line Breakdown</h3>
                                             <div className="space-y-8">
                                                 {calculations.processedLines.map(line => (
-                                                    <div key={line.id} className="flex flex-col md:flex-row gap-8 items-start">
+                                                    <div key={line.id} className="flex flex-col md:flex-row gap-8 items-start break-inside-avoid">
                                                         <div className="w-10 h-10 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-black/5">{line.type === 'Smartphone' ? <Icon name="Smartphone" size={24}/> : line.type === 'Tablet' ? <Icon name="Tablet" size={24}/> : line.type === 'Watch' ? <Icon name="Watch" size={24}/> : <Icon name="Home" size={24}/>}</div>
                                                         <div className="flex-1 w-full text-black">
                                                             <div className="flex justify-between items-start w-full">
@@ -450,7 +469,7 @@
                                                     </div>
                                                 ))}
                                                 {(multiDeviceProtection || accountAdjustments.length > 0) && (
-                                                    <div className="flex flex-col md:flex-row gap-8 items-start pt-6 border-t border-black/5 text-black">
+                                                    <div className="flex flex-col md:flex-row gap-8 items-start pt-6 border-t border-black/5 text-black break-inside-avoid">
                                                         <div className="w-10 h-10 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-black/5 opacity-40"><Icon name="ShieldCheck" size={24}/></div>
                                                         <div className="flex-1 w-full text-black">
                                                             <div className="flex justify-between items-start w-full">
@@ -465,31 +484,63 @@
                                                         </div>
                                                     </div>
                                                 )}
+                                                {oneTimeCredits.length > 0 && (
+                                                    <div className="flex flex-col md:flex-row gap-8 items-start pt-6 border-t border-black/5 text-black break-inside-avoid">
+                                                        <div className="w-10 h-10 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-black/5 opacity-40"><Icon name="Gift" size={24}/></div>
+                                                        <div className="flex-1 w-full text-black">
+                                                            <div className="flex justify-between items-start w-full">
+                                                                <div>
+                                                                    <h4 className="text-lg font-black leading-tight">One-time credits</h4>
+                                                                    {customerViewMode === 'detailed' ? (
+                                                                        <div className="mt-3 space-y-1 border-l-2 border-stone-100 pl-4">
+                                                                            {oneTimeCredits.map(credit => (
+                                                                                <p key={credit.id} className="text-sm tracking-tight text-emerald-600 font-bold">
+                                                                                    -${parseFloat(credit.amount || 0).toFixed(2)} {credit.label || 'Credit'}
+                                                                                </p>
+                                                                            ))}
+                                                                        </div>
+                                                                    ) : (
+                                                                        <p className="text-xs font-medium opacity-50 mt-1 italic">One-time credits applied</p>
+                                                                    )}
+                                                                </div>
+                                                                <div className="text-right"><span className="font-black text-xl text-emerald-600">-${calculations.totalOneTimeCredits.toFixed(2)}</span></div>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
 
-                                        <div className="flex flex-row justify-between items-end gap-4 mt-8">
-                                            <div className="flex gap-1 p-1 bg-black/5 rounded-xl h-fit">
+                                        <div className="flex flex-row justify-between items-end gap-4 mt-8 print:mt-12">
+                                            <div className="flex gap-1 p-1 bg-black/5 rounded-xl h-fit print:hidden">
                                                 <button onClick={() => setCustomerViewMode('detailed')} className={`px-3 md:px-4 py-1.5 rounded-lg text-[9px] md:text-[10px] font-bold uppercase transition-all ${customerViewMode === 'detailed' ? 'bg-black text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Detailed</button>
                                                 <button onClick={() => setCustomerViewMode('simple')} className={`px-3 md:px-4 py-1.5 rounded-lg text-[9px] md:text-[10px] font-bold uppercase transition-all ${customerViewMode === 'simple' ? 'bg-black text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Simple</button>
+                                                <div className="w-px bg-black/10 mx-1"></div>
+                                                <button onClick={() => window.print()} className="px-3 md:px-4 py-1.5 rounded-lg text-[9px] md:text-[10px] font-bold uppercase transition-all text-black/60 hover:bg-black hover:text-white flex items-center gap-1"><Icon name="Printer" size={12}/> Print</button>
                                             </div>
 
-                                            <div className="flex flex-col sm:flex-row gap-2">
-                                                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs">
-                                                    <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0 text-white"><Icon name="Smartphone" size={14} /></div>
-                                                    <div className="text-right"><p className="text-[9px] md:text-[10px] font-black uppercase opacity-60 leading-none mb-0.5">Device Savings</p><span className="text-xl md:text-2xl font-black text-emerald-600 tracking-tighter leading-none">${calculations.totalFullDeviceSavings.toFixed(2)}</span></div>
+                                            <div className="flex flex-col sm:flex-row flex-wrap gap-2 print:w-full print:justify-end">
+                                                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs print:bg-transparent print:border-black/20">
+                                                    <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0 text-white print:bg-transparent print:border print:border-black/20 print:text-black"><Icon name="Smartphone" size={14} /></div>
+                                                    <div className="text-right"><p className="text-[9px] md:text-[10px] font-black uppercase opacity-60 leading-none mb-0.5 print:text-black">Device Savings</p><span className="text-xl md:text-2xl font-black text-emerald-600 tracking-tighter leading-none print:text-black">${calculations.totalFullDeviceSavings.toFixed(2)}</span></div>
                                                 </div>
-                                                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs">
-                                                    <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0 text-white"><Icon name="DollarSign" size={16} /></div>
-                                                    <div className="text-right"><p className="text-[9px] md:text-[10px] font-black uppercase opacity-60 leading-none mb-0.5">Monthly Savings</p><span className="text-xl md:text-2xl font-black text-emerald-600 tracking-tighter leading-none">${calculations.totalMonthlySavings.toFixed(2)}</span></div>
+                                                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs print:bg-transparent print:border-black/20">
+                                                    <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0 text-white print:bg-transparent print:border print:border-black/20 print:text-black"><Icon name="DollarSign" size={16} /></div>
+                                                    <div className="text-right"><p className="text-[9px] md:text-[10px] font-black uppercase opacity-60 leading-none mb-0.5 print:text-black">Monthly Savings</p><span className="text-xl md:text-2xl font-black text-emerald-600 tracking-tighter leading-none print:text-black">${calculations.totalMonthlySavings.toFixed(2)}</span></div>
                                                 </div>
+                                                {calculations.totalOneTimeCredits > 0 && (
+                                                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs print:bg-transparent print:border-black/20">
+                                                        <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0 text-white print:bg-transparent print:border print:border-black/20 print:text-black"><Icon name="Gift" size={16} /></div>
+                                                        <div className="text-right"><p className="text-[9px] md:text-[10px] font-black uppercase opacity-60 leading-none mb-0.5 print:text-black">One-Time Credits</p><span className="text-xl md:text-2xl font-black text-emerald-600 tracking-tighter leading-none print:text-black">${calculations.totalOneTimeCredits.toFixed(2)}</span></div>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
                                     
-                                    <div className="p-8 bg-stone-50 border-t border-black/5 flex items-start gap-2"><span className="text-[10px] font-medium opacity-40 shrink-0 mt-0.5">*</span><p className="text-[10px] font-medium leading-relaxed opacity-40 italic">Estimate only. Taxes, surcharges, and activation fees not included. Promotions may change. Quote guaranteed for today.</p></div>
+                                    <div className="p-8 bg-stone-50 border-t border-black/5 flex items-start gap-2 print:bg-transparent print:border-t print:border-black/20"><span className="text-[10px] font-medium opacity-40 shrink-0 mt-0.5">*</span><p className="text-[10px] font-medium leading-relaxed opacity-40 italic">Estimate only. Taxes, surcharges, and activation fees not included. Promotions may change. Quote guaranteed for today.</p></div>
                                 </div>
-                                <div className="text-center"><button onClick={() => setView('rep')} className="text-black font-bold text-[10px] uppercase tracking-widest opacity-20 hover:opacity-60 transition-all">Back to builder</button></div>
+                                <div className="text-center print:hidden"><button onClick={() => setView('rep')} className="text-black font-bold text-[10px] uppercase tracking-widest opacity-20 hover:opacity-60 transition-all">Back to builder</button></div>
                             </div>
                         )}
                     </main>
@@ -544,6 +595,25 @@
                                     })}
                                 </div>
                                 <div className="p-8 border-t border-black/5 flex justify-between items-center text-black bg-stone-50"><div><p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Total Perks</p><p className="text-3xl font-black text-black">${lines.find(l => l.id === activePerkLineId)?.perks.reduce((acc, pName) => acc + (PERKS.find(p => p.name === pName)?.cost || 0), 0).toFixed(2)}/mo</p></div><button onClick={() => setActivePerkLineId(null)} className="px-14 py-5 bg-verizon-red text-white rounded-2xl font-black text-xl shadow-lg hover:scale-[1.01] active:scale-95 transition-all text-white">Save perks</button></div>
+                            </div>
+                        </div>
+                    )}
+
+                    {showOneTimeCreditsModal && (
+                        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowOneTimeCreditsModal(false)}>
+                            <div className="relative w-full max-w-lg bg-white rounded-[40px] overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
+                                <div className="p-10 border-b border-black/5 bg-stone-50 flex justify-between items-center"><h2 className="text-2xl font-black">One-Time Credits</h2><button onClick={() => setShowOneTimeCreditsModal(false)} className="p-3 hover:bg-black/5 rounded-full"><Icon name="X" size={28}/></button></div>
+                                <div className="p-10 space-y-6 max-h-[60vh] overflow-y-auto">
+                                    {oneTimeCredits.map((credit, i) => (
+                                        <div key={credit.id} className="flex gap-4 items-end bg-stone-50 p-6 rounded-3xl border border-black/5 text-black">
+                                            <div className="flex-grow space-y-1"><label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Label</label><input value={credit.label} onFocus={e => e.target.select()} placeholder="Credit Label" onChange={e => setOneTimeCredits(prev => prev.map((c, idx) => idx === i ? {...c, label: e.target.value} : c))} className="w-full bg-white border border-black/10 px-4 py-3 rounded-xl text-sm font-bold focus:border-black outline-none text-black" /></div>
+                                            <div className="w-28 space-y-1"><label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Amount</label><input type="number" inputMode="decimal" value={credit.amount} onWheel={e => e.currentTarget.blur()} onFocus={e => e.target.select()} placeholder="0.00" onChange={e => setOneTimeCredits(prev => prev.map((c, idx) => idx === i ? {...c, amount: e.target.value} : c))} className="w-full bg-white border border-black/10 px-4 py-3 rounded-xl text-sm font-bold focus:border-black outline-none text-black" /></div>
+                                            <button onClick={() => setOneTimeCredits(prev => prev.filter((_, idx) => idx !== i))} className="p-3 text-verizon-red hover:bg-red-50 rounded-lg transition-colors"><Icon name="Trash2" size={20}/></button>
+                                        </div>
+                                    ))}
+                                    <button onClick={() => setOneTimeCredits(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), label: '', amount: '' }])} className="w-full py-6 border-2 border-dashed border-black/10 rounded-2xl text-black/40 hover:text-black font-bold flex items-center justify-center gap-3 transition-all text-base uppercase"><Icon name="PlusCircle" size={20}/> Add one-time credit</button>
+                                </div>
+                                <div className="p-8 border-t border-black/5 text-black"><button onClick={() => setShowOneTimeCreditsModal(false)} className="w-full py-6 bg-black text-white rounded-2xl font-black text-xl hover:scale-[1.01] active:scale-95 transition-all shadow-md text-white">Done</button></div>
                             </div>
                         </div>
                     )}
