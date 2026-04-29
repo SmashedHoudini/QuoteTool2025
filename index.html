@@ -19,6 +19,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
+    <!-- LZ-String for URL Compression -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
         
@@ -138,7 +141,41 @@
             const [pdfHeight, setPdfHeight] = useState(1100);
             const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
-            useEffect(() => { if (lines.length === 0) addLine('Smartphone'); }, []);
+            // Share Link States
+            const [isCopied, setIsCopied] = useState(false);
+
+            // Import Quote from URL Hash on Initial Load
+            useEffect(() => {
+                const hash = window.location.hash;
+                let loadedFromHash = false;
+                
+                if (hash.startsWith('#quote=')) {
+                    try {
+                        const compressed = hash.substring(7);
+                        const jsonString = LZString.decompressFromEncodedURIComponent(compressed);
+                        if (jsonString) {
+                            const state = JSON.parse(jsonString);
+                            if (state.lines && state.lines.length > 0) {
+                                setLines(state.lines);
+                                loadedFromHash = true;
+                            }
+                            if (state.accountAdjustments) setAccountAdjustments(state.accountAdjustments);
+                            if (state.multiDeviceProtection !== undefined) setMultiDeviceProtection(state.multiDeviceProtection);
+                            if (state.oneTimeCredits) setOneTimeCredits(state.oneTimeCredits);
+                            if (state.customerName) {
+                                setCustomerName(state.customerName);
+                                setShowNameField(true);
+                            }
+                        }
+                    } catch (e) {
+                        console.error("Failed to load quote from URL", e);
+                    }
+                }
+                
+                if (!loadedFromHash && lines.length === 0) {
+                    addLine('Smartphone');
+                }
+            }, []);
 
             // Mobile view scaling logic ONLY for the print preview HTML Container
             useEffect(() => {
@@ -174,6 +211,32 @@
             const handlePrintPreview = () => {
                 setView('print');
                 window.scrollTo(0, 0); // Always start preview at the top
+            };
+
+            const handleShareLink = () => {
+                const stateToSave = {
+                    lines,
+                    accountAdjustments,
+                    multiDeviceProtection,
+                    oneTimeCredits,
+                    customerName
+                };
+                const compressed = LZString.compressToEncodedURIComponent(JSON.stringify(stateToSave));
+                const shareUrl = `${window.location.origin}${window.location.pathname}#quote=${compressed}`;
+                
+                // Fallback copy mechanism for broad browser/iframe support
+                const textArea = document.createElement("textarea");
+                textArea.value = shareUrl;
+                document.body.appendChild(textArea);
+                textArea.select();
+                try {
+                    document.execCommand('copy');
+                    setIsCopied(true);
+                    setTimeout(() => setIsCopied(false), 2000);
+                } catch (err) {
+                    console.error('Failed to copy link', err);
+                }
+                document.body.removeChild(textArea);
             };
 
             const addLine = (type) => {
@@ -462,6 +525,9 @@
                                 <span className="text-lg md:text-xl font-light tracking-tight opacity-60">TCC</span>
                             </div>
                             <div className="flex items-center gap-2 md:gap-3">
+                                <button onClick={handleShareLink} title={isCopied ? "Copied!" : "Copy Share Link"} className="p-2 md:p-2.5 rounded-full transition-all flex items-center justify-center shadow-sm border border-black/10 bg-white text-black hover:bg-black hover:text-white relative">
+                                    {isCopied ? <Icon name="Check" size={16} className="text-emerald-500" /> : <Icon name="Link" size={16}/>}
+                                </button>
                                 <button onClick={handlePrintPreview} title="Print Preview" className="p-2 md:p-2.5 rounded-full transition-all flex items-center justify-center shadow-sm border border-black/10 bg-white text-black hover:bg-black hover:text-white">
                                     <Icon name="Printer" size={16}/>
                                 </button>
