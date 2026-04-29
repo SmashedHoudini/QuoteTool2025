@@ -15,6 +15,10 @@
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
 
+    <!-- html2canvas and jsPDF for 1:1 Perfect PDF Capture -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;900&display=swap');
         
@@ -44,21 +48,6 @@
         /* Prevent scrolling from changing numbers */
         input[type=number] {
             touch-action: manipulation;
-        }
-
-        @media print {
-            @page { 
-                /* Setting margin to 0 hides the browser injected URL/Date */
-                margin: 0; 
-            }
-            body { 
-                background-color: #ffffff !important; 
-                -webkit-print-color-adjust: exact; 
-                print-color-adjust: exact; 
-                /* Forces mobile browsers to spool the printout at desktop width */
-                min-width: 850px !important;
-                margin: 0 auto;
-            }
         }
     </style>
 </head>
@@ -143,28 +132,48 @@
             const [oneTimeCredits, setOneTimeCredits] = useState([]);
             const [showOneTimeCreditsModal, setShowOneTimeCreditsModal] = useState(false);
             const [editingLabelId, setEditingLabelId] = useState(null);
+            
+            // PDF Generation States
+            const [scale, setScale] = useState(1);
+            const [pdfHeight, setPdfHeight] = useState(1100);
+            const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
 
             useEffect(() => { if (lines.length === 0) addLine('Smartphone'); }, []);
 
-            const handleSavePdf = async () => {
-                const origUrl = window.location.href;
-                const origTitle = document.title;
-                try {
-                    // Temporarily clean the URL and Title right before printing
-                    window.history.replaceState({}, '', '/Quote');
-                    document.title = 'Verizon_Quote';
-                } catch(e) {} 
-                
-                // Triggers native print
-                window.print();
-                
-                // Restore original URL/Title
-                setTimeout(() => {
-                    try {
-                        window.history.replaceState({}, '', origUrl);
-                        document.title = origTitle;
-                    } catch(e) {}
-                }, 1000);
+            // Mobile view scaling logic ONLY for the print preview HTML Container
+            useEffect(() => {
+                const updateScale = () => {
+                    if (view === 'print') {
+                        if (window.innerWidth < 880) {
+                            setScale((window.innerWidth - 32) / 850); 
+                        } else {
+                            setScale(1);
+                        }
+                    }
+                };
+                window.addEventListener('resize', updateScale);
+                updateScale();
+                return () => window.removeEventListener('resize', updateScale);
+            }, [view]);
+
+            // Accurately measure dynamic height for drawing the red dashed preview lines
+            useEffect(() => {
+                if (view === 'print') {
+                    const checkHeight = () => {
+                        const el = document.getElementById('pdf-page-render-0');
+                        if (el && el.offsetHeight !== pdfHeight) {
+                            setPdfHeight(el.offsetHeight);
+                        }
+                    };
+                    checkHeight();
+                    const interval = setInterval(checkHeight, 300); // Catch async font/icon loads
+                    return () => clearInterval(interval);
+                }
+            }, [view, pdfHeight, customerViewMode]);
+
+            const handlePrintPreview = () => {
+                setView('print');
+                window.scrollTo(0, 0); // Always start preview at the top
             };
 
             const addLine = (type) => {
@@ -329,30 +338,142 @@
                 };
             }, [lines, multiDeviceProtection, accountAdjustments, oneTimeCredits]);
 
+            // --- REACT PAGINATION ENGINE ---
+            // This calculates exactly what fits on an 8.5x11 inch page and groups them.
+            const paginatedContent = useMemo(() => {
+                const pages = [];
+                let currentItems = [];
+                let currentHeight = 320; // Page 1 starts with the big Header block
+
+                const pushPage = (isLast = false) => {
+                    pages.push({ id: pages.length, items: [...currentItems], isFirst: pages.length === 0, isLast });
+                    currentItems = [];
+                    currentHeight = 60; // Top padding for subsequent pages
+                };
+
+                calculations.processedLines.forEach(line => {
+                    // Calculate precise pixel height of this element based on content
+                    let itemHeight = customerViewMode === 'detailed'
+                        ? 90 + (line.perks.length * 18) + (line.adjustments.length * 18) + (line.deviceName ? 20 : 0) + (line.autopaySaving > 0 ? 18 : 0) + (line.mhSaving > 0 ? 18 : 0) + (line.isDiscounted ? 18 : 0) + (line.devicePrice > 0 ? 18 : 0) + (line.protCost > 0 ? 18 : 0)
+                        : 70 + (line.perks.length > 0 ? 18 : 0);
+
+                    if (currentHeight + itemHeight > 980) pushPage(); // 980px is max safe height
+                    currentItems.push({ type: 'line', data: line });
+                    currentHeight += itemHeight;
+                });
+
+                if (multiDeviceProtection || accountAdjustments.length > 0) {
+                    let itemHeight = customerViewMode === 'detailed'
+                        ? 60 + (multiDeviceProtection ? 18 : 0) + (accountAdjustments.length * 18)
+                        : 60;
+                    if (currentHeight + itemHeight > 980) pushPage();
+                    currentItems.push({ type: 'account_services' });
+                    currentHeight += itemHeight;
+                }
+
+                if (oneTimeCredits.length > 0) {
+                    let itemHeight = customerViewMode === 'detailed'
+                        ? 60 + (oneTimeCredits.length * 18)
+                        : 60;
+                    if (currentHeight + itemHeight > 980) pushPage();
+                    currentItems.push({ type: 'otc' });
+                    currentHeight += itemHeight;
+                }
+
+                // Footer block needs about 180px
+                if (currentHeight + 180 > 980) pushPage();
+                currentItems.push({ type: 'footer' });
+                
+                pushPage(true); // Push the final page
+                return pages;
+            }, [calculations, customerViewMode]);
+
+            // --- 1:1 TRUE PDF CAPTURE LOGIC ---
+            const handleSavePdf = async () => {
+                setIsGeneratingPdf(true);
+                
+                // CRITICAL: Ensure all web fonts are fully loaded before capturing
+                await document.fonts.ready;
+                
+                // Store current scroll to restore later, and snap to top to prevent canvas offset bugs
+                const originalScrollY = window.scrollY;
+                window.scrollTo(0, 0);
+
+                const { jsPDF } = window.jspdf;
+                const doc = new jsPDF({ format: 'letter', unit: 'pt' });
+                
+                // Create a temporary hidden workspace to render un-scaled clones
+                const hiddenWorkspace = document.createElement('div');
+                hiddenWorkspace.style.position = 'absolute';
+                hiddenWorkspace.style.top = '0px';
+                hiddenWorkspace.style.left = '-9999px'; // Hide off screen safely
+                document.body.appendChild(hiddenWorkspace);
+
+                try {
+                    for (let i = 0; i < paginatedContent.length; i++) {
+                        const pageNode = document.getElementById(`pdf-page-render-${i}`);
+                        const clone = pageNode.cloneNode(true);
+                        
+                        // Force 1:1 scale for perfect clarity, overriding any mobile shrinking
+                        clone.style.transform = 'none'; 
+                        clone.style.margin = '0';
+                        hiddenWorkspace.appendChild(clone);
+
+                        const canvas = await html2canvas(clone, { 
+                            scale: 2, // 2x Retina resolution capture
+                            useCORS: true,
+                            backgroundColor: '#ffffff',
+                            logging: false,
+                            windowWidth: 850 // Forces Tailwind to use desktop layout for the clone
+                        });
+                        
+                        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+                        
+                        if (i > 0) doc.addPage();
+                        // Paste perfectly scaled image into PDF bounds
+                        doc.addImage(imgData, 'JPEG', 0, 0, 612, 792);
+
+                        hiddenWorkspace.innerHTML = ''; // Clear for next page
+                    }
+                    
+                    const filename = `${customerName.trim() ? customerName.trim().split(' ')[0] + '_' : ''}Verizon_Quote.pdf`;
+                    doc.save(filename);
+                } catch (error) {
+                    console.error("PDF Generation Error:", error);
+                } finally {
+                    document.body.removeChild(hiddenWorkspace);
+                    window.scrollTo(0, originalScrollY); // Restore user position
+                    setIsGeneratingPdf(false);
+                }
+            };
+
             const activeHardwareLine = lines.find(l => l.id === activeHardwareLineId);
             const activePerkLine = lines.find(l => l.id === activePerkLineId);
             const activeAdjLine = lines.find(l => l.id === activeAdjLineId);
 
             return (
                 <div className="min-h-screen">
-                    <nav className="sticky top-0 z-50 px-4 md:px-6 py-4 border-b border-black/10 flex justify-between items-center bg-stone-100/80 backdrop-blur-md text-black print:hidden">
-                        <div className="flex items-center">
-                            <span className="text-lg md:text-xl font-black tracking-tight">verizon</span>
-                            <span className="mx-2 md:mx-3 h-5 w-px bg-black/20"></span>
-                            <span className="text-lg md:text-xl font-light tracking-tight opacity-60">TCC</span>
-                        </div>
-                        <div className="flex items-center gap-2 md:gap-3">
-                            <button onClick={() => setView('print')} title="Print Preview" className={`p-2 md:p-2.5 rounded-full transition-all flex items-center justify-center shadow-sm border border-black/10 ${view === 'print' ? 'bg-black text-white' : 'bg-white text-black hover:bg-black hover:text-white'}`}>
-                                <Icon name="Printer" size={16}/>
-                            </button>
-                            <div className="flex gap-1 md:gap-2 p-1 bg-black/5 rounded-full">
-                                <button onClick={() => setView('rep')} className={`px-2.5 md:px-6 py-1.5 md:py-2 rounded-full text-[10px] md:text-sm font-bold transition-all flex items-center gap-2 ${view === 'rep' ? 'bg-black text-white' : 'text-black/60 hover:text-black'}`}><Icon name="Settings" size={14} /> <span className="hidden sm:inline">Rep view</span><span className="sm:hidden">Rep</span></button>
-                                <button onClick={() => setView('customer')} className={`px-2.5 md:px-6 py-1.5 md:py-2 rounded-full text-[10px] md:text-sm font-bold transition-all flex items-center gap-2 ${view === 'customer' ? 'bg-black text-white' : 'text-black/60 hover:text-black'}`}><Icon name="Eye" size={14} /> <span className="hidden sm:inline">Customer view</span><span className="sm:hidden">Cust</span></button>
+                    {/* Only show nav if not currently in print preview mode */}
+                    {view !== 'print' && (
+                        <nav className="sticky top-0 z-50 px-4 md:px-6 py-4 border-b border-black/10 flex justify-between items-center bg-stone-100/80 backdrop-blur-md text-black">
+                            <div className="flex items-center">
+                                <span className="text-lg md:text-xl font-black tracking-tight">verizon</span>
+                                <span className="mx-2 md:mx-3 h-5 w-px bg-black/20"></span>
+                                <span className="text-lg md:text-xl font-light tracking-tight opacity-60">TCC</span>
                             </div>
-                        </div>
-                    </nav>
+                            <div className="flex items-center gap-2 md:gap-3">
+                                <button onClick={handlePrintPreview} title="Print Preview" className="p-2 md:p-2.5 rounded-full transition-all flex items-center justify-center shadow-sm border border-black/10 bg-white text-black hover:bg-black hover:text-white">
+                                    <Icon name="Printer" size={16}/>
+                                </button>
+                                <div className="flex gap-1 md:gap-2 p-1 bg-black/5 rounded-full">
+                                    <button onClick={() => setView('rep')} className={`px-2.5 md:px-6 py-1.5 md:py-2 rounded-full text-[10px] md:text-sm font-bold transition-all flex items-center gap-2 ${view === 'rep' ? 'bg-black text-white' : 'text-black/60 hover:text-black'}`}><Icon name="Settings" size={14} /> <span className="hidden sm:inline">Rep view</span><span className="sm:hidden">Rep</span></button>
+                                    <button onClick={() => setView('customer')} className={`px-2.5 md:px-6 py-1.5 md:py-2 rounded-full text-[10px] md:text-sm font-bold transition-all flex items-center gap-2 ${view === 'customer' ? 'bg-black text-white' : 'text-black/60 hover:text-black'}`}><Icon name="Eye" size={14} /> <span className="hidden sm:inline">Customer view</span><span className="sm:hidden">Cust</span></button>
+                                </div>
+                            </div>
+                        </nav>
+                    )}
 
-                    <main className={`max-w-[1340px] mx-auto mb-24 text-black print:p-0 print:m-0 print:max-w-none ${view === 'print' ? 'p-0 w-full max-w-none' : 'p-4 md:p-6'}`}>
+                    <main className={view === 'print' ? 'w-full' : 'max-w-[1340px] mx-auto p-4 md:p-6 mb-24 text-black'}>
                         {view === 'rep' && (
                             <div className="space-y-6">
                                 <header>
@@ -466,94 +587,94 @@
 
                         {view === 'customer' && (
                             /* CUSTOMER VIEW */
-                            <div className="max-w-4xl mx-auto space-y-6 print:space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-500 pb-20 print:pb-0 text-black print:px-8 print:py-12 print:m-0 print:w-full print:max-w-none">
+                            <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-500 pb-20 text-black">
                                 <header className="text-center space-y-1">
-                                    <h1 className="text-2xl md:text-3xl print:text-xl font-black text-black tracking-tight leading-none">{customerName.trim() ? <>Hey {customerName.trim().split(' ')[0]},<br />Here's Your Verizon Quote.</> : "Your Verizon Quote."}</h1>
-                                    <p className="text-sm md:text-base print:text-xs text-black/60 font-medium italic opacity-70">Reliable, clear, and built for you.</p>
+                                    <h1 className="text-2xl md:text-3xl font-black text-black tracking-tight leading-none">{customerName.trim() ? <>Hey {customerName.trim().split(' ')[0]},<br />Here's Your Verizon Quote.</> : "Your Verizon Quote."}</h1>
+                                    <p className="text-sm md:text-base text-black/60 font-medium italic opacity-70">Reliable, clear, and built for you.</p>
                                 </header>
-                                <div className="bg-white rounded-[40px] shadow-xl print:shadow-none print:border-none overflow-hidden border border-black/5">
-                                    <div className="bg-verizon-red print:bg-transparent print:border-b-2 print:border-black p-8 md:p-10 print:p-4 print:pb-3 text-white print:text-black flex flex-col md:flex-row print:flex-row justify-between items-center print:items-end text-center md:text-left print:text-left gap-4 print:gap-0">
-                                        <div className="flex-1 order-2 md:order-1 print:order-1"><h2 className="text-lg md:text-xl print:text-base font-black mb-1">Monthly total</h2><p className="text-white/70 print:text-black/70 text-[11px] md:text-xs print:text-[9px] font-medium uppercase tracking-widest opacity-80">with Auto Pay & Paper-free billing</p></div>
-                                        <div className="text-right text-white print:text-black order-1 md:order-2 print:order-2">
-                                            <div className="flex items-baseline justify-center md:justify-end print:justify-end gap-1"><span className="text-5xl md:text-6xl print:text-3xl font-black tracking-tighter leading-none">${calculations.total.toFixed(2)}</span><span className="text-xl print:text-lg font-bold opacity-40">/mo</span></div>
-                                            <div className="flex flex-col items-center md:items-end print:items-end mt-2"><p className="text-white print:text-black text-[10px] print:text-[8px] uppercase tracking-widest font-bold opacity-60">+ Taxes & Surcharges</p><p className="text-white print:text-black font-black text-[11px] print:text-[9px] uppercase tracking-widest opacity-100 mt-1">Estimated ${calculations.totalWithoutAutopay.toFixed(2)} without Auto Pay</p></div>
+                                <div className="bg-white rounded-[40px] shadow-xl overflow-hidden border border-black/5">
+                                    <div className="bg-verizon-red p-8 md:p-10 text-white flex flex-col md:flex-row justify-between items-center text-center md:text-left gap-4">
+                                        <div className="flex-1 order-2 md:order-1"><h2 className="text-lg md:text-xl font-black mb-1">Monthly total</h2><p className="text-white/70 text-[11px] md:text-xs font-medium uppercase tracking-widest opacity-80">with Auto Pay & Paper-free billing</p></div>
+                                        <div className="text-right text-white order-1 md:order-2">
+                                            <div className="flex items-baseline justify-center md:justify-end gap-1"><span className="text-5xl md:text-6xl font-black tracking-tighter leading-none">${calculations.total.toFixed(2)}</span><span className="text-xl font-bold opacity-40">/mo</span></div>
+                                            <div className="flex flex-col items-center md:items-end mt-2"><p className="text-white text-[10px] uppercase tracking-widest font-bold opacity-60">+ Taxes & Surcharges</p><p className="text-white font-black text-[11px] uppercase tracking-widest opacity-100 mt-1">Estimated ${calculations.totalWithoutAutopay.toFixed(2)} without Auto Pay</p></div>
                                         </div>
                                     </div>
                                     
-                                    <div className="p-6 md:p-8 print:p-4 print:pt-4 space-y-8 print:space-y-3">
+                                    <div className="p-6 md:p-8 space-y-8">
                                         <div>
-                                            <h3 className="text-[10px] print:text-[8px] font-bold uppercase tracking-widest opacity-30 print:opacity-60 mb-6 print:mb-3 border-b border-black/5 print:border-black/20 pb-2">Line Breakdown</h3>
-                                            <div className="space-y-8 print:space-y-3">
+                                            <h3 className="text-[10px] font-bold uppercase tracking-widest opacity-30 mb-6 border-b border-black/5 pb-2">Line Breakdown</h3>
+                                            <div className="space-y-8">
                                                 {calculations.processedLines.map(line => (
-                                                    <div key={line.id} className="flex flex-col md:flex-row print:flex-row gap-8 print:gap-3 items-start break-inside-avoid">
-                                                        <div className="w-10 h-10 print:w-8 print:h-8 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-black/5 print:border-none print:bg-transparent"><Icon name={line.type === 'Smartphone' ? 'Smartphone' : line.type === 'Tablet' ? 'Tablet' : line.type === 'Watch' ? 'Watch' : 'Home'} size={24} className="print:w-5 print:h-5 print:opacity-60" /></div>
+                                                    <div key={line.id} className="flex flex-col md:flex-row gap-8 items-start">
+                                                        <div className="w-10 h-10 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-black/5"><Icon name={line.type === 'Smartphone' ? 'Smartphone' : line.type === 'Tablet' ? 'Tablet' : line.type === 'Watch' ? 'Watch' : 'Home'} size={24} className="opacity-60" /></div>
                                                         <div className="flex-1 w-full text-black">
                                                             <div className="flex justify-between items-start w-full">
                                                                 <div>
-                                                                    <h4 className="text-lg print:text-sm font-black leading-tight">{line.label}</h4>
-                                                                    {line.deviceName && <p className="text-sm print:text-[11px] font-medium mt-1 print:mt-0 uppercase tracking-wide opacity-60 print:opacity-80">{line.deviceName}</p>}
+                                                                    <h4 className="text-lg font-black leading-tight">{line.label}</h4>
+                                                                    {line.deviceName && <p className="text-sm font-medium mt-1 uppercase tracking-wide opacity-60">{line.deviceName}</p>}
                                                                     {customerViewMode === 'detailed' ? (
-                                                                        <div className="mt-3 print:mt-1.5 space-y-1 print:space-y-0.5 border-l-2 border-stone-100 print:border-black/10 pl-4 print:pl-3 py-0.5">
-                                                                            <p className="text-sm print:text-xs font-medium opacity-50 print:opacity-80">${line.planBase.toFixed(2)} {line.displayName}</p>
-                                                                            {line.autopaySaving > 0 && <p className="text-sm print:text-xs text-emerald-600 print:text-black font-bold print:font-semibold print:opacity-80">-${line.autopaySaving.toFixed(2)} Auto Pay & Paper-free Discount</p>}
-                                                                            {line.mhSaving > 0 && <p className="text-sm print:text-xs text-emerald-600 print:text-black font-bold print:font-semibold print:opacity-80">-${line.mhSaving.toFixed(2)} Mobile + Home Discount</p>}
-                                                                            {line.isDiscounted && <p className="text-sm print:text-xs text-emerald-600 print:text-black font-bold print:font-semibold print:opacity-80">-${line.connectedDiscountAmt.toFixed(2)} Connected Device Discount</p>}
-                                                                            {line.devicePrice > 0 && <p className="text-sm print:text-xs font-medium opacity-50 print:opacity-80">${line.deviceMonthly.toFixed(2)} Device Payment</p>}
-                                                                            {line.perks.map(pName => <p key={pName} className="text-sm print:text-xs font-medium opacity-50 print:opacity-80">${(PERKS.find(p => p.name === pName)?.cost || 10).toFixed(2)} {pName}</p>)}
-                                                                            {line.adjustments.map(adj => <p key={adj.id} className={`text-sm print:text-xs tracking-tight ${adj.type === 'credit' ? 'text-emerald-600 print:text-black font-bold print:font-semibold print:opacity-80' : 'opacity-50 print:opacity-80'}`}>{adj.type === 'credit' ? '-' : ''}${parseFloat(adj.amount || 0).toFixed(2)} {adj.label}</p>)}
-                                                                            {line.protCost > 0 && <p className="text-sm print:text-xs font-medium opacity-50 print:opacity-80">${line.protCost}.00 Device protection</p>}
+                                                                        <div className="mt-3 space-y-1 border-l-2 border-stone-100 pl-4 py-0.5">
+                                                                            <p className="text-sm font-medium opacity-50">${line.planBase.toFixed(2)} {line.displayName}</p>
+                                                                            {line.autopaySaving > 0 && <p className="text-sm text-emerald-600 font-bold">-${line.autopaySaving.toFixed(2)} Auto Pay & Paper-free Discount</p>}
+                                                                            {line.mhSaving > 0 && <p className="text-sm text-emerald-600 font-bold">-${line.mhSaving.toFixed(2)} Mobile + Home Discount</p>}
+                                                                            {line.isDiscounted && <p className="text-sm text-emerald-600 font-bold">-${line.connectedDiscountAmt.toFixed(2)} Connected Device Discount</p>}
+                                                                            {line.devicePrice > 0 && <p className="text-sm font-medium opacity-50">${line.deviceMonthly.toFixed(2)} Device Payment</p>}
+                                                                            {line.perks.map(pName => <p key={pName} className="text-sm font-medium opacity-50">${(PERKS.find(p => p.name === pName)?.cost || 10).toFixed(2)} {pName}</p>)}
+                                                                            {line.adjustments.map(adj => <p key={adj.id} className={`text-sm tracking-tight ${adj.type === 'credit' ? 'text-emerald-600 font-bold' : 'opacity-50'}`}>{adj.type === 'credit' ? '-' : ''}${parseFloat(adj.amount || 0).toFixed(2)} {adj.label}</p>)}
+                                                                            {line.protCost > 0 && <p className="text-sm font-medium opacity-50">${line.protCost}.00 Device protection</p>}
                                                                         </div>
                                                                     ) : (
-                                                                        <div className="mt-2 print:mt-1 space-y-1 print:space-y-0.5">
-                                                                            <p className="text-xs print:text-[10px] font-medium opacity-50 print:opacity-80">{line.displayName}</p>
-                                                                            {line.perks.length > 0 && <p className="text-[11px] print:text-[9px] font-bold text-black/40 print:text-black/60 italic">Includes: {line.perks.join(', ')}</p>}
+                                                                        <div className="mt-2 space-y-1">
+                                                                            <p className="text-xs font-medium opacity-50">{line.displayName}</p>
+                                                                            {line.perks.length > 0 && <p className="text-[11px] font-bold text-black/40 italic">Includes: {line.perks.join(', ')}</p>}
                                                                         </div>
                                                                     )}
                                                                 </div>
-                                                                <div className="text-right"><span className="font-black text-xl print:text-base">${line.totalLineCost.toFixed(2)}</span></div>
+                                                                <div className="text-right"><span className="font-black text-xl">${line.totalLineCost.toFixed(2)}</span></div>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 ))}
                                                 {(multiDeviceProtection || accountAdjustments.length > 0) && (
-                                                    <div className="flex flex-col md:flex-row print:flex-row gap-8 print:gap-3 items-start pt-6 print:pt-3 border-t border-black/5 text-black break-inside-avoid">
-                                                        <div className="w-10 h-10 print:w-8 print:h-8 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-black/5 opacity-40 print:border-none print:bg-transparent"><Icon name="ShieldCheck" size={24} className="print:w-5 print:h-5"/></div>
+                                                    <div className="flex flex-col md:flex-row gap-8 items-start pt-6 border-t border-black/5 text-black">
+                                                        <div className="w-10 h-10 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-black/5 opacity-40"><Icon name="ShieldCheck" size={24} /></div>
                                                         <div className="flex-1 w-full text-black">
                                                             <div className="flex justify-between items-start w-full">
                                                                 <div>
-                                                                    <h4 className="text-lg print:text-sm font-black leading-tight">Account services</h4>
+                                                                    <h4 className="text-lg font-black leading-tight">Account services</h4>
                                                                     {customerViewMode === 'detailed' ? (
-                                                                        <div className="mt-3 print:mt-1.5 space-y-1 print:space-y-0.5 border-l-2 border-stone-100 print:border-black/10 pl-4 print:pl-3 py-0.5">
-                                                                            {multiDeviceProtection && <p className="text-sm print:text-xs font-medium opacity-50 print:opacity-80">${calculations.vmpCost.toFixed(2)} Multi-Device Protection</p>}
-                                                                            {accountAdjustments.map(adj => <p key={adj.id} className={`text-sm print:text-xs tracking-tight ${adj.type === 'credit' ? 'text-emerald-600 print:text-black font-bold print:font-semibold print:opacity-80' : 'opacity-50 print:opacity-80'}`}>{adj.type === 'credit' ? '-' : ''}${parseFloat(adj.amount || 0).toFixed(2)} {adj.label}</p>)}
+                                                                        <div className="mt-3 space-y-1 border-l-2 border-stone-100 pl-4">
+                                                                            {multiDeviceProtection && <p className="text-sm font-medium opacity-50">${calculations.vmpCost.toFixed(2)} Multi-Device Protection</p>}
+                                                                            {accountAdjustments.map(adj => <p key={adj.id} className={`text-sm tracking-tight ${adj.type === 'credit' ? 'text-emerald-600 font-bold' : 'opacity-50'}`}>{adj.type === 'credit' ? '-' : ''}${parseFloat(adj.amount || 0).toFixed(2)} {adj.label}</p>)}
                                                                         </div>
-                                                                    ) : <p className="text-xs print:text-[10px] font-medium opacity-50 print:opacity-80 mt-1 print:mt-0.5 italic">Protection & Adjustments Applied</p>}
+                                                                    ) : <p className="text-xs font-medium opacity-50 mt-1 italic">Protection & Adjustments Applied</p>}
                                                                 </div>
-                                                                <div className="text-right"><span className="font-black text-xl print:text-base">${(calculations.vmpCost + calculations.accAdjSum).toFixed(2)}</span></div>
+                                                                <div className="text-right"><span className="font-black text-xl">${(calculations.vmpCost + calculations.accAdjSum).toFixed(2)}</span></div>
                                                             </div>
                                                         </div>
                                                     </div>
                                                 )}
                                                 {oneTimeCredits.length > 0 && (
-                                                    <div className="flex flex-col md:flex-row print:flex-row gap-8 print:gap-3 items-start pt-6 print:pt-3 border-t border-black/5 text-black break-inside-avoid">
-                                                        <div className="w-10 h-10 print:w-8 print:h-8 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-black/5 opacity-40 print:border-none print:bg-transparent"><Icon name="Gift" size={24} className="print:w-5 print:h-5"/></div>
+                                                    <div className="flex flex-col md:flex-row gap-8 items-start pt-6 border-t border-black/5 text-black">
+                                                        <div className="w-10 h-10 rounded-xl bg-stone-100 flex items-center justify-center shrink-0 border border-black/5 opacity-40"><Icon name="Gift" size={24} /></div>
                                                         <div className="flex-1 w-full text-black">
                                                             <div className="flex justify-between items-start w-full">
                                                                 <div>
-                                                                    <h4 className="text-lg print:text-sm font-black leading-tight">One-time credits</h4>
+                                                                    <h4 className="text-lg font-black leading-tight">One-time credits</h4>
                                                                     {customerViewMode === 'detailed' ? (
-                                                                        <div className="mt-3 print:mt-1.5 space-y-1 print:space-y-0.5 border-l-2 border-stone-100 print:border-black/10 pl-4 print:pl-3 py-0.5">
+                                                                        <div className="mt-3 space-y-1 border-l-2 border-stone-100 pl-4">
                                                                             {oneTimeCredits.map(credit => (
-                                                                                <p key={credit.id} className="text-sm print:text-xs tracking-tight text-emerald-600 print:text-black font-bold print:font-semibold print:opacity-80">
+                                                                                <p key={credit.id} className="text-sm tracking-tight text-emerald-600 font-bold">
                                                                                     -${parseFloat(credit.amount || 0).toFixed(2)} {credit.label || 'Credit'}
                                                                                 </p>
                                                                             ))}
                                                                         </div>
                                                                     ) : (
-                                                                        <p className="text-xs print:text-[10px] font-medium opacity-50 print:opacity-80 mt-1 print:mt-0.5 italic">One-time credits applied</p>
+                                                                        <p className="text-xs font-medium opacity-50 mt-1 italic">One-time credits applied</p>
                                                                     )}
                                                                 </div>
-                                                                <div className="text-right"><span className="font-black text-xl print:text-base text-emerald-600 print:text-black">-${calculations.totalOneTimeCredits.toFixed(2)}</span></div>
+                                                                <div className="text-right"><span className="font-black text-xl text-emerald-600">-${calculations.totalOneTimeCredits.toFixed(2)}</span></div>
                                                             </div>
                                                         </div>
                                                     </div>
@@ -561,180 +682,214 @@
                                             </div>
                                         </div>
 
-                                        <div className="flex flex-row justify-between items-end gap-4 mt-8 print:mt-4">
-                                            <div className="flex gap-1 p-1 bg-black/5 rounded-xl h-fit print:hidden">
+                                        <div className="flex flex-row justify-between items-end gap-4 mt-8">
+                                            <div className="flex gap-1 p-1 bg-black/5 rounded-xl h-fit">
                                                 <button onClick={() => setCustomerViewMode('detailed')} className={`px-3 md:px-4 py-1.5 rounded-lg text-[9px] md:text-[10px] font-bold uppercase transition-all ${customerViewMode === 'detailed' ? 'bg-black text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Detailed</button>
                                                 <button onClick={() => setCustomerViewMode('simple')} className={`px-3 md:px-4 py-1.5 rounded-lg text-[9px] md:text-[10px] font-bold uppercase transition-all ${customerViewMode === 'simple' ? 'bg-black text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Simple</button>
                                             </div>
 
-                                            <div className="flex flex-col sm:flex-row print:flex-row flex-wrap gap-2 print:gap-4 print:w-full print:justify-end">
-                                                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs print:max-w-xs print:p-2 print:border-none print:bg-stone-50">
-                                                    <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0 text-white print:bg-transparent print:border print:border-black/20 print:text-black print:w-6 print:h-6"><Icon name="Smartphone" size={14} className="print:w-3 print:h-3"/></div>
-                                                    <div className="text-right"><p className="text-[9px] md:text-[10px] print:text-[8px] font-black uppercase opacity-60 leading-none mb-0.5 print:text-black">Device Savings</p><span className="text-xl md:text-2xl print:text-base font-black text-emerald-600 print:text-black tracking-tighter leading-none">${calculations.totalFullDeviceSavings.toFixed(2)}</span></div>
+                                            <div className="flex flex-col sm:flex-row flex-wrap gap-2">
+                                                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs">
+                                                    <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0 text-white"><Icon name="Smartphone" size={14} /></div>
+                                                    <div className="text-right"><p className="text-[9px] md:text-[10px] font-black uppercase opacity-60 leading-none mb-0.5">Device Savings</p><span className="text-xl md:text-2xl font-black text-emerald-600 tracking-tighter leading-none">${calculations.totalFullDeviceSavings.toFixed(2)}</span></div>
                                                 </div>
-                                                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs print:max-w-xs print:p-2 print:border-none print:bg-stone-50">
-                                                    <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0 text-white print:bg-transparent print:border print:border-black/20 print:text-black print:w-6 print:h-6"><Icon name="DollarSign" size={16} className="print:w-3 print:h-3"/></div>
-                                                    <div className="text-right"><p className="text-[9px] md:text-[10px] print:text-[8px] font-black uppercase opacity-60 leading-none mb-0.5 print:text-black">Monthly Savings</p><span className="text-xl md:text-2xl print:text-base font-black text-emerald-600 print:text-black tracking-tighter leading-none">${calculations.totalMonthlySavings.toFixed(2)}</span></div>
+                                                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs">
+                                                    <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0 text-white"><Icon name="DollarSign" size={16} /></div>
+                                                    <div className="text-right"><p className="text-[9px] md:text-[10px] font-black uppercase opacity-60 leading-none mb-0.5">Monthly Savings</p><span className="text-xl md:text-2xl font-black text-emerald-600 tracking-tighter leading-none">${calculations.totalMonthlySavings.toFixed(2)}</span></div>
                                                 </div>
                                                 {calculations.totalOneTimeCredits > 0 && (
-                                                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs print:max-w-xs print:p-2 print:border-none print:bg-stone-50">
-                                                        <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0 text-white print:bg-transparent print:border print:border-black/20 print:text-black print:w-6 print:h-6"><Icon name="Gift" size={16} className="print:w-3 print:h-3"/></div>
-                                                        <div className="text-right"><p className="text-[9px] md:text-[10px] print:text-[8px] font-black uppercase opacity-60 leading-none mb-0.5 print:text-black">One-Time Credits</p><span className="text-xl md:text-2xl print:text-base font-black text-emerald-600 print:text-black tracking-tighter leading-none">${calculations.totalOneTimeCredits.toFixed(2)}</span></div>
+                                                    <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-950 shadow-sm max-w-[180px] md:max-w-xs">
+                                                        <div className="w-7 h-7 bg-emerald-500 rounded-lg flex items-center justify-center shrink-0 text-white"><Icon name="Gift" size={16} /></div>
+                                                        <div className="text-right"><p className="text-[9px] md:text-[10px] font-black uppercase opacity-60 leading-none mb-0.5">One-Time Credits</p><span className="text-xl md:text-2xl font-black text-emerald-600 tracking-tighter leading-none">${calculations.totalOneTimeCredits.toFixed(2)}</span></div>
                                                     </div>
                                                 )}
                                             </div>
                                         </div>
                                     </div>
                                     
-                                    <div className="p-8 bg-stone-50 border-t border-black/5 flex items-start gap-2 print:p-4 print:bg-transparent print:border-t print:border-black/20"><span className="text-[10px] print:text-[8px] font-medium opacity-40 shrink-0 mt-0.5">*</span><p className="text-[10px] print:text-[8px] font-medium leading-relaxed opacity-40 italic print:opacity-60">Estimate only. Taxes, surcharges, and activation fees not included. Promotions may change. Quote guaranteed for today.</p></div>
+                                    <div className="p-8 bg-stone-50 border-t border-black/5 flex items-start gap-2"><span className="text-[10px] font-medium opacity-40 shrink-0 mt-0.5">*</span><p className="text-[10px] font-medium leading-relaxed opacity-40 italic">Estimate only. Taxes, surcharges, and activation fees not included. Promotions may change. Quote guaranteed for today.</p></div>
                                 </div>
-                                <div className="text-center print:hidden"><button onClick={() => setView('rep')} className="text-black font-bold text-[10px] uppercase tracking-widest opacity-20 hover:opacity-60 transition-all">Back to builder</button></div>
+                                <div className="text-center"><button onClick={() => setView('rep')} className="text-black font-bold text-[10px] uppercase tracking-widest opacity-20 hover:opacity-60 transition-all">Back to builder</button></div>
                             </div>
                         )}
 
                         {view === 'print' && (
-                            /* TRUE PRINT PREVIEW VIEW */
-                            <div className="w-full overflow-x-auto pb-24 print:pb-0 bg-stone-200/50 print:bg-white pt-8 print:pt-0 animate-in fade-in duration-300">
-                                <div className="w-[850px] min-h-[1100px] mx-auto bg-white p-12 shadow-2xl print:shadow-none print:w-full print:h-auto print:p-0 text-black border border-black/10 print:border-none relative break-inside-avoid">
-                                    <header className="text-center space-y-2 mb-10">
-                                        <h1 className="text-3xl font-black text-black tracking-tight leading-none">{customerName.trim() ? <>Hey {customerName.trim().split(' ')[0]},<br />Here's Your Verizon Quote.</> : "Your Verizon Quote."}</h1>
-                                        <p className="text-sm text-black/60 font-medium italic">Reliable, clear, and built for you.</p>
-                                    </header>
+                            /* TRUE REACT HTML PAGINATION - 1:1 PDF PARITY */
+                            <div className="w-full flex flex-col items-center bg-stone-200/80 pt-4 md:pt-8 pb-24 min-h-screen gap-8 overflow-x-hidden">
+                                
+                                {paginatedContent.map((page, index) => (
+                                    <div key={index} style={{ width: 850 * scale, height: 1100 * scale }} className="relative shadow-2xl bg-white border border-black/10 transition-all duration-300 shrink-0">
+                                        <div id={`pdf-page-render-${index}`} style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: 850, height: 1100 }} className="absolute top-0 left-0 bg-white pt-[50px] px-[50px] pb-[40px] text-black">
+                                            
+                                            {/* HEADER (Only on Page 1) */}
+                                            {page.isFirst && (
+                                                <>
+                                                    <header className="text-center space-y-2 mb-10">
+                                                        <h1 className="text-3xl font-black text-black tracking-tight leading-none">{customerName.trim() ? <>Hey {customerName.trim().split(' ')[0]},<br />Here's Your Verizon Quote.</> : "Your Verizon Quote."}</h1>
+                                                        <p className="text-sm text-black/60 font-medium italic">Reliable, clear, and built for you.</p>
+                                                    </header>
 
-                                    <div className="border-b-4 border-black pb-6 flex justify-between items-end mb-8">
-                                        <div>
-                                            <h2 className="text-xl font-black mb-1">Monthly total</h2>
-                                            <p className="text-black/70 text-xs font-medium uppercase tracking-widest">with Auto Pay & Paper-free billing</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="flex items-baseline justify-end gap-1">
-                                                <span className="text-6xl font-black tracking-tighter leading-none">${calculations.total.toFixed(2)}</span>
-                                                <span className="text-lg font-bold opacity-60">/mo</span>
-                                            </div>
-                                            <div className="flex flex-col items-end mt-2">
-                                                <p className="text-[10px] uppercase tracking-widest font-bold opacity-60">+ Taxes & Surcharges</p>
-                                                <p className="font-black text-[11px] uppercase tracking-widest mt-1">Estimated ${calculations.totalWithoutAutopay.toFixed(2)} without Auto Pay</p>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <h3 className="text-xs font-bold uppercase tracking-widest opacity-60 mb-4 border-b border-black/20 pb-2">Line Breakdown</h3>
-                                    <div className="space-y-4">
-                                        {calculations.processedLines.map(line => (
-                                            <div key={line.id} className="flex gap-4 items-start break-inside-avoid">
-                                                <div className="w-8 h-8 flex items-center justify-center shrink-0">
-                                                    <Icon name={line.type === 'Smartphone' ? 'Smartphone' : line.type === 'Tablet' ? 'Tablet' : line.type === 'Watch' ? 'Watch' : 'Home'} size={24} className="opacity-60" />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <div className="flex justify-between items-start">
+                                                    <div className="border-b-4 border-black pb-6 flex justify-between items-end mb-8">
                                                         <div>
-                                                            <h4 className="text-sm font-black leading-tight">{line.label}</h4>
-                                                            {line.deviceName && <p className="text-[11px] font-medium uppercase tracking-wide opacity-80">{line.deviceName}</p>}
-                                                            
-                                                            {customerViewMode === 'detailed' ? (
-                                                                <div className="mt-1.5 space-y-0.5 border-l-2 border-black/10 pl-3 py-0.5">
-                                                                    <p className="text-xs font-medium opacity-80">${line.planBase.toFixed(2)} {line.displayName}</p>
-                                                                    {line.autopaySaving > 0 && <p className="text-xs text-black font-semibold opacity-80">-${line.autopaySaving.toFixed(2)} Auto Pay & Paper-free Discount</p>}
-                                                                    {line.mhSaving > 0 && <p className="text-xs text-black font-semibold opacity-80">-${line.mhSaving.toFixed(2)} Mobile + Home Discount</p>}
-                                                                    {line.isDiscounted && <p className="text-xs text-black font-semibold opacity-80">-${line.connectedDiscountAmt.toFixed(2)} Connected Device Discount</p>}
-                                                                    {line.devicePrice > 0 && <p className="text-xs font-medium opacity-80">${line.deviceMonthly.toFixed(2)} Device Payment</p>}
-                                                                    {line.perks.map(pName => <p key={pName} className="text-xs font-medium opacity-80">${(PERKS.find(p => p.name === pName)?.cost || 10).toFixed(2)} {pName}</p>)}
-                                                                    {line.adjustments.map(adj => <p key={adj.id} className={`text-xs tracking-tight ${adj.type === 'credit' ? 'text-black font-semibold opacity-80' : 'opacity-80'}`}>{adj.type === 'credit' ? '-' : ''}${parseFloat(adj.amount || 0).toFixed(2)} {adj.label}</p>)}
-                                                                    {line.protCost > 0 && <p className="text-xs font-medium opacity-80">${line.protCost}.00 Device protection</p>}
-                                                                </div>
-                                                            ) : (
-                                                                <div className="mt-1 space-y-0.5">
-                                                                    <p className="text-[10px] font-medium opacity-80">{line.displayName}</p>
-                                                                    {line.perks.length > 0 && <p className="text-[9px] font-bold text-black/60 italic">Includes: {line.perks.join(', ')}</p>}
-                                                                </div>
-                                                            )}
+                                                            <h2 className="text-xl font-black mb-1">Monthly total</h2>
+                                                            <p className="text-black/70 text-xs font-medium uppercase tracking-widest">with Auto Pay & Paper-free billing</p>
                                                         </div>
                                                         <div className="text-right">
-                                                            <span className="font-black text-base">${line.totalLineCost.toFixed(2)}</span>
+                                                            <div className="flex items-baseline justify-end gap-1 mb-1">
+                                                                <span className="text-[52px] font-black tracking-tight leading-[1]">${calculations.total.toFixed(2)}</span>
+                                                                <span className="text-lg font-bold opacity-60">/mo</span>
+                                                            </div>
+                                                            <div className="flex flex-col items-end mt-4">
+                                                                <p className="text-[10px] uppercase tracking-widest font-bold opacity-60 pt-1">+ Taxes & Surcharges</p>
+                                                                <p className="font-black text-[11px] uppercase tracking-widest mt-1">Estimated ${calculations.totalWithoutAutopay.toFixed(2)} without Auto Pay</p>
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
-                                            </div>
-                                        ))}
+                                                    <h3 className="text-xs font-bold uppercase tracking-widest opacity-60 mb-4 border-b border-black/20 pb-2">Line Breakdown</h3>
+                                                </>
+                                            )}
 
-                                        {(multiDeviceProtection || accountAdjustments.length > 0) && (
-                                            <div className="flex gap-4 items-start pt-4 border-t border-black/10 break-inside-avoid">
-                                                <div className="w-8 h-8 flex items-center justify-center shrink-0 opacity-60">
-                                                    <Icon name="ShieldCheck" size={24}/>
-                                                </div>
-                                                <div className="flex-1">
-                                                    <div className="flex justify-between items-start">
-                                                        <div>
-                                                            <h4 className="text-sm font-black leading-tight">Account services</h4>
-                                                            {customerViewMode === 'detailed' ? (
-                                                                <div className="mt-1.5 space-y-0.5 border-l-2 border-black/10 pl-3 py-0.5">
-                                                                    {multiDeviceProtection && <p className="text-xs font-medium opacity-80">${calculations.vmpCost.toFixed(2)} Multi-Device Protection</p>}
-                                                                    {accountAdjustments.map(adj => <p key={adj.id} className={`text-xs tracking-tight ${adj.type === 'credit' ? 'text-black font-semibold opacity-80' : 'opacity-80'}`}>{adj.type === 'credit' ? '-' : ''}${parseFloat(adj.amount || 0).toFixed(2)} {adj.label}</p>)}
+                                            {/* PAGE ITEMS (Lines, Acc Services, OTC, Footer) */}
+                                            <div className="space-y-4">
+                                                {page.items.map((item, i) => {
+                                                    if (item.type === 'line') {
+                                                        const line = item.data;
+                                                        return (
+                                                            <div key={line.id} className="flex gap-4 items-start mb-4">
+                                                                <div className="w-8 h-8 flex items-center justify-center shrink-0">
+                                                                    <Icon name={line.type === 'Smartphone' ? 'Smartphone' : line.type === 'Tablet' ? 'Tablet' : line.type === 'Watch' ? 'Watch' : 'Home'} size={24} className="opacity-60" />
                                                                 </div>
-                                                            ) : <p className="text-[10px] font-medium opacity-80 mt-0.5 italic">Protection & Adjustments Applied</p>}
-                                                        </div>
-                                                        <div className="text-right"><span className="font-black text-base">${(calculations.vmpCost + calculations.accAdjSum).toFixed(2)}</span></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-
-                                        {oneTimeCredits.length > 0 && (
-                                            <div className="flex gap-4 items-start pt-4 border-t border-black/10 break-inside-avoid">
-                                                <div className="w-8 h-8 flex items-center justify-center shrink-0 opacity-60">
-                                                    <Icon name="Gift" size={24}/>
-                                                </div>
-                                                <div className="flex-1">
-                                                    <div className="flex justify-between items-start">
-                                                        <div>
-                                                            <h4 className="text-sm font-black leading-tight">One-time credits</h4>
-                                                            {customerViewMode === 'detailed' ? (
-                                                                <div className="mt-1.5 space-y-0.5 border-l-2 border-black/10 pl-3 py-0.5">
-                                                                    {oneTimeCredits.map(credit => (
-                                                                        <p key={credit.id} className="text-xs tracking-tight text-black font-semibold opacity-80">
-                                                                            -${parseFloat(credit.amount || 0).toFixed(2)} {credit.label || 'Credit'}
-                                                                        </p>
-                                                                    ))}
+                                                                <div className="flex-1 border-b border-black/5 pb-4">
+                                                                    <div className="flex justify-between items-start">
+                                                                        <div>
+                                                                            <h4 className="text-sm font-black leading-tight">{line.label}</h4>
+                                                                            {line.deviceName && <p className="text-[11px] font-medium uppercase tracking-wide opacity-80">{line.deviceName}</p>}
+                                                                            {customerViewMode === 'detailed' ? (
+                                                                                <div className="mt-1.5 space-y-0.5 border-l-2 border-black/10 pl-3 py-0.5">
+                                                                                    <p className="text-xs font-medium opacity-80">${line.planBase.toFixed(2)} {line.displayName}</p>
+                                                                                    {line.autopaySaving > 0 && <p className="text-xs text-black font-semibold opacity-80">-${line.autopaySaving.toFixed(2)} Auto Pay & Paper-free Discount</p>}
+                                                                                    {line.mhSaving > 0 && <p className="text-xs text-black font-semibold opacity-80">-${line.mhSaving.toFixed(2)} Mobile + Home Discount</p>}
+                                                                                    {line.isDiscounted && <p className="text-xs text-black font-semibold opacity-80">-${line.connectedDiscountAmt.toFixed(2)} Connected Device Discount</p>}
+                                                                                    {line.devicePrice > 0 && <p className="text-xs font-medium opacity-80">${line.deviceMonthly.toFixed(2)} Device Payment</p>}
+                                                                                    {line.perks.map(pName => <p key={pName} className="text-xs font-medium opacity-80">${(PERKS.find(p => p.name === pName)?.cost || 10).toFixed(2)} {pName}</p>)}
+                                                                                    {line.adjustments.map(adj => <p key={adj.id} className={`text-xs tracking-tight ${adj.type === 'credit' ? 'text-black font-semibold opacity-80' : 'opacity-80'}`}>{adj.type === 'credit' ? '-' : ''}${parseFloat(adj.amount || 0).toFixed(2)} {adj.label}</p>)}
+                                                                                    {line.protCost > 0 && <p className="text-xs font-medium opacity-80">${line.protCost}.00 Device protection</p>}
+                                                                                </div>
+                                                                            ) : (
+                                                                                <div className="mt-1 space-y-0.5">
+                                                                                    <p className="text-[10px] font-medium opacity-80">{line.displayName}</p>
+                                                                                    {line.perks.length > 0 && <p className="text-[9px] font-bold text-black/60 italic">Includes: {line.perks.join(', ')}</p>}
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="text-right">
+                                                                            <span className="font-black text-base">${line.totalLineCost.toFixed(2)}</span>
+                                                                        </div>
+                                                                    </div>
                                                                 </div>
-                                                            ) : (
-                                                                <p className="text-[10px] font-medium opacity-80 mt-0.5 italic">One-time credits applied</p>
-                                                            )}
-                                                        </div>
-                                                        <div className="text-right"><span className="font-black text-base text-black">-${calculations.totalOneTimeCredits.toFixed(2)}</span></div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    
+                                                    if (item.type === 'account_services') {
+                                                        return (
+                                                            <div key={`acc-serv-${i}`} className="flex gap-4 items-start pt-2 mb-4">
+                                                                <div className="w-8 h-8 flex items-center justify-center shrink-0 opacity-60">
+                                                                    <Icon name="ShieldCheck" size={24}/>
+                                                                </div>
+                                                                <div className="flex-1 border-b border-black/5 pb-4">
+                                                                    <div className="flex justify-between items-start">
+                                                                        <div>
+                                                                            <h4 className="text-sm font-black leading-tight">Account services</h4>
+                                                                            {customerViewMode === 'detailed' ? (
+                                                                                <div className="mt-1.5 space-y-0.5 border-l-2 border-black/10 pl-3 py-0.5">
+                                                                                    {multiDeviceProtection && <p className="text-xs font-medium opacity-80">${calculations.vmpCost.toFixed(2)} Multi-Device Protection</p>}
+                                                                                    {accountAdjustments.map(adj => <p key={adj.id} className={`text-xs tracking-tight ${adj.type === 'credit' ? 'text-black font-semibold opacity-80' : 'opacity-80'}`}>{adj.type === 'credit' ? '-' : ''}${parseFloat(adj.amount || 0).toFixed(2)} {adj.label}</p>)}
+                                                                                </div>
+                                                                            ) : <p className="text-[10px] font-medium opacity-80 mt-0.5 italic">Protection & Adjustments Applied</p>}
+                                                                        </div>
+                                                                        <div className="text-right"><span className="font-black text-base">${(calculations.vmpCost + calculations.accAdjSum).toFixed(2)}</span></div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
 
-                                    <div className="flex justify-end gap-6 mt-8 pt-4 border-t border-black/20 break-inside-avoid">
-                                        <div className="text-right">
-                                            <p className="text-[9px] font-black uppercase opacity-60 leading-none mb-1 text-black">Device Savings</p>
-                                            <span className="text-lg font-black text-black tracking-tighter leading-none">${calculations.totalFullDeviceSavings.toFixed(2)}</span>
-                                        </div>
-                                        <div className="text-right">
-                                            <p className="text-[9px] font-black uppercase opacity-60 leading-none mb-1 text-black">Monthly Savings</p>
-                                            <span className="text-lg font-black text-black tracking-tighter leading-none">${calculations.totalMonthlySavings.toFixed(2)}</span>
-                                        </div>
-                                        {calculations.totalOneTimeCredits > 0 && (
-                                            <div className="text-right">
-                                                <p className="text-[9px] font-black uppercase opacity-60 leading-none mb-1 text-black">One-Time Credits</p>
-                                                <span className="text-lg font-black text-black tracking-tighter leading-none">${calculations.totalOneTimeCredits.toFixed(2)}</span>
+                                                    if (item.type === 'otc') {
+                                                        return (
+                                                            <div key={`otc-${i}`} className="flex gap-4 items-start pt-2 mb-4">
+                                                                <div className="w-8 h-8 flex items-center justify-center shrink-0 opacity-60">
+                                                                    <Icon name="Gift" size={24}/>
+                                                                </div>
+                                                                <div className="flex-1 border-b border-black/5 pb-4">
+                                                                    <div className="flex justify-between items-start">
+                                                                        <div>
+                                                                            <h4 className="text-sm font-black leading-tight">One-time credits</h4>
+                                                                            {customerViewMode === 'detailed' ? (
+                                                                                <div className="mt-1.5 space-y-0.5 border-l-2 border-black/10 pl-3 py-0.5">
+                                                                                    {oneTimeCredits.map(credit => (
+                                                                                        <p key={credit.id} className="text-xs tracking-tight text-black font-semibold opacity-80">
+                                                                                            -${parseFloat(credit.amount || 0).toFixed(2)} {credit.label || 'Credit'}
+                                                                                        </p>
+                                                                                    ))}
+                                                                                </div>
+                                                                            ) : (
+                                                                                <p className="text-[10px] font-medium opacity-80 mt-0.5 italic">One-time credits applied</p>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="text-right"><span className="font-black text-base text-black">-${calculations.totalOneTimeCredits.toFixed(2)}</span></div>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
+
+                                                    if (item.type === 'footer') {
+                                                        return (
+                                                            <div key={`footer-${i}`}>
+                                                                <div className="flex justify-end gap-6 pt-4 border-t border-black/20">
+                                                                    <div className="text-right">
+                                                                        <p className="text-[9px] font-black uppercase opacity-60 leading-none mb-1 text-black">Device Savings</p>
+                                                                        <span className="text-lg font-black text-black tracking-tighter leading-none">${calculations.totalFullDeviceSavings.toFixed(2)}</span>
+                                                                    </div>
+                                                                    <div className="text-right">
+                                                                        <p className="text-[9px] font-black uppercase opacity-60 leading-none mb-1 text-black">Monthly Savings</p>
+                                                                        <span className="text-lg font-black text-black tracking-tighter leading-none">${calculations.totalMonthlySavings.toFixed(2)}</span>
+                                                                    </div>
+                                                                    {calculations.totalOneTimeCredits > 0 && (
+                                                                        <div className="text-right">
+                                                                            <p className="text-[9px] font-black uppercase opacity-60 leading-none mb-1 text-black">One-Time Credits</p>
+                                                                            <span className="text-lg font-black text-black tracking-tighter leading-none">-${calculations.totalOneTimeCredits.toFixed(2)}</span>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                                
+                                                                <div className="mt-12 flex items-start gap-2 opacity-60 border-t border-black/10 pt-4">
+                                                                    <span className="text-[9px] font-medium shrink-0 mt-0.5">*</span>
+                                                                    <p className="text-[9px] font-medium leading-relaxed italic">Estimate only. Taxes, surcharges, and activation fees not included. Promotions may change. Quote guaranteed for today.</p>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    }
+                                                    return null;
+                                                })}
                                             </div>
-                                        )}
+
+                                            {/* Baked in page number logic for the preview */}
+                                            <div className="absolute bottom-6 right-10 text-xs font-bold text-black/40">
+                                                Page {index + 1} of {paginatedContent.length}
+                                            </div>
+                                        </div>
                                     </div>
-                                    
-                                    <div className="mt-12 flex items-start gap-2 opacity-60 border-t border-black/10 pt-4">
-                                        <span className="text-[9px] font-medium shrink-0 mt-0.5">*</span>
-                                        <p className="text-[9px] font-medium leading-relaxed italic">Estimate only. Taxes, surcharges, and activation fees not included. Promotions may change. Quote guaranteed for today.</p>
-                                    </div>
-                                </div>
-                                
-                                <div className="mt-12 flex flex-col items-center gap-4 print:hidden">
-                                    <button onClick={handleSavePdf} className="px-8 py-4 bg-black hover:bg-stone-800 text-white rounded-xl font-black text-lg transition-all shadow-xl flex items-center gap-3">
-                                        <Icon name="Download" size={20}/> Save as PDF
+                                ))}
+
+                                {/* Bottom Action Buttons */}
+                                <div className="mt-4 flex flex-col items-center gap-4 relative z-10">
+                                    <button onClick={handleSavePdf} disabled={isGeneratingPdf} className="px-8 py-4 bg-black hover:bg-stone-800 text-white rounded-xl font-black text-lg transition-all shadow-xl flex items-center gap-3">
+                                        {isGeneratingPdf ? <Icon name="Loader2" size={20} className="animate-spin" /> : <Icon name="Download" size={20}/>}
+                                        {isGeneratingPdf ? 'Generating PDF...' : 'Save as PDF'}
                                     </button>
-                                    <button onClick={() => setView('customer')} className="text-black font-bold text-xs uppercase tracking-widest opacity-40 hover:opacity-100 transition-all flex items-center gap-2">
+                                    <button onClick={() => setView('customer')} className="text-black font-bold text-xs uppercase tracking-widest opacity-40 hover:opacity-100 transition-all flex items-center gap-2 mb-8">
                                         <Icon name="ArrowLeft" size={14}/> Back to quote
                                     </button>
                                 </div>
