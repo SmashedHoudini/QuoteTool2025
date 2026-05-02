@@ -15,16 +15,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>TCC Quote Tool</title>
     <script>
-        tailwind = {
-            config: {
-                theme: {
-                    screens: {
-                        sm: '640px',
-                        md: '768px',
-                        lg: '1180px',
-                        xl: '1280px',
-                        '2xl': '1536px'
-                    }
+        tailwind = window.tailwind || {};
+        tailwind.config = {
+            theme: {
+                screens: {
+                    sm: '640px',
+                    md: '768px',
+                    lg: '1180px',
+                    xl: '1280px',
+                    '2xl': '1536px'
                 }
             }
         };
@@ -77,6 +76,50 @@
         /* Prevent scrolling from changing numbers */
         input[type=number] {
             touch-action: manipulation;
+        }
+
+        /*
+            iPad Safari can report a desktop-ish viewport in portrait. Keep
+            portrait tablets on the clean medium layout instead of the wide
+            desktop row layout.
+        */
+        @media (orientation: portrait) and (pointer: coarse) and (min-width: 768px) and (max-width: 1366px) {
+            .lg\:flex-row {
+                flex-direction: column !important;
+            }
+            .lg\:w-48,
+            .lg\:w-52,
+            .lg\:w-36 {
+                width: 100% !important;
+            }
+            .lg\:shrink-0 {
+                flex-shrink: 1 !important;
+            }
+            .lg\:border-t-0 {
+                border-top-width: 1px !important;
+            }
+            .lg\:border-l {
+                border-left-width: 0 !important;
+            }
+            .lg\:pt-0 {
+                padding-top: 1.25rem !important;
+            }
+            .lg\:pl-6 {
+                padding-left: 0 !important;
+            }
+            .lg\:items-end {
+                align-items: center !important;
+            }
+            .lg\:text-left {
+                text-align: center !important;
+            }
+            .lg\:grid-cols-12 {
+                grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
+            }
+            .lg\:col-span-4,
+            .lg\:col-span-8 {
+                grid-column: auto !important;
+            }
         }
 
     </style>
