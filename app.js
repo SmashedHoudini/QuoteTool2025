@@ -40,6 +40,9 @@ const Icon = ({ name, size = 18, className = "" }) => {
     );
 };
 
+const VMP_CALCULATOR_TOOL = window.QuoteTool.tools?.vmpCalculator;
+const VMPCalculator = VMP_CALCULATOR_TOOL?.enabled ? VMP_CALCULATOR_TOOL.Component : null;
+
 const App = ({ config }) => {
     const SMARTPHONE_PLANS = config.smartphonePlans;
     const TABLET_PLANS = config.tabletPlans;
@@ -48,6 +51,7 @@ const App = ({ config }) => {
     const PERKS = config.perks;
     const FINANCING_MONTHS = config.quoteSettings.financingMonths;
     const [view, setView] = useState('rep');
+    const [previousQuoteView, setPreviousQuoteView] = useState('rep');
     const [customerViewMode, setCustomerViewMode] = useState('detailed');
     const [customerName, setCustomerName] = useState('');
     const [showNameField, setShowNameField] = useState(false);
@@ -154,6 +158,19 @@ const App = ({ config }) => {
     const handlePrintPreview = () => {
         setView('print');
         window.scrollTo(0, 0); // Always start preview at the top
+    };
+
+    const openVmpCalculator = () => {
+        if (!VMPCalculator) return;
+        setPreviousQuoteView(view === 'customer' ? 'customer' : 'rep');
+        setView('vmp');
+        setIsMenuOpen(false);
+        window.scrollTo(0, 0);
+    };
+
+    const backToQuote = () => {
+        setView(previousQuoteView);
+        window.scrollTo(0, 0);
     };
 
     const handleShareLink = () => {
@@ -443,8 +460,8 @@ const App = ({ config }) => {
     };
     return (
         <div className="min-h-screen">
-            {/* Only show nav if not currently in print preview mode */}
-            {view !== 'print' && (
+            {/* Only show nav on quote views. Print preview and standalone tools handle their own navigation. */}
+            {view !== 'print' && view !== 'vmp' && (
                 <nav className="sticky top-0 z-50 px-4 md:px-6 py-4 border-b border-black/10 flex justify-between items-center bg-stone-100/80 backdrop-blur-md text-black">
                     <div className="flex items-center gap-2">
                         <button onClick={() => setIsMenuOpen(true)} title="Open menu" className="p-1.5 transition-colors flex items-center justify-center text-black/60 hover:text-black">
@@ -490,11 +507,22 @@ const App = ({ config }) => {
                                 <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${includeEstimatedTaxes ? 'right-1' : 'left-1'}`} />
                             </span>
                         </button>
+
+                        {VMPCalculator && (
+                            <button onClick={openVmpCalculator} className="w-full bg-stone-50 border border-black/10 rounded-2xl p-4 flex items-center justify-between text-left hover:border-black/20 transition-colors">
+                                <div>
+                                    <p className="text-sm font-black">{VMP_CALCULATOR_TOOL.label}</p>
+                                </div>
+                                <Icon name="ChevronRight" size={18} className="text-black/40" />
+                            </button>
+                        )}
                     </aside>
                 </div>
             )}
 
             <main className={view === 'print' ? 'w-full' : 'max-w-[1340px] mx-auto p-4 md:p-6 mb-24 text-black'}>
+                {view === 'vmp' && <VMPCalculator onBack={backToQuote} />}
+
                 {view === 'rep' && (
                     <div className="space-y-6">
                         <header>
@@ -642,7 +670,7 @@ const App = ({ config }) => {
                                                     <div className="flex justify-between items-start w-full">
                                                         <div>
                                                             <h4 className="text-lg font-black leading-tight">{line.label}</h4>
-                                                            {line.deviceName && <p className="text-sm font-medium mt-1 uppercase tracking-wide opacity-60">{line.deviceName}</p>}
+                                                            {line.deviceName && <p className="text-sm font-medium mt-1 tracking-wide opacity-60">{line.deviceName}</p>}
                                                             {customerViewMode === 'detailed' ? (
                                                                 <div className="mt-3 space-y-1 border-l-2 border-stone-100 pl-4 py-0.5">
                                                                     <p className="text-sm font-medium opacity-50">${line.planBase.toFixed(2)} {line.displayName}</p>
@@ -796,7 +824,7 @@ const App = ({ config }) => {
                                                             <div className="flex justify-between items-start">
                                                                 <div>
                                                                     <h4 className="text-sm font-black leading-tight">{line.label}</h4>
-                                                                    {line.deviceName && <p className="text-[11px] font-medium uppercase tracking-wide opacity-80">{line.deviceName}</p>}
+                                                                    {line.deviceName && <p className="text-[11px] font-medium tracking-wide opacity-80">{line.deviceName}</p>}
                                                                     {customerViewMode === 'detailed' ? (
                                                                         <div className="mt-1.5 space-y-0.5 border-l-2 border-black/10 pl-3 py-0.5">
                                                                             <p className="text-xs font-medium opacity-80">${line.planBase.toFixed(2)} {line.displayName}</p>

@@ -56,6 +56,7 @@
     };
 
     const savePricing = async () => {
+        const wasViewingDevices = activeTab === 'devices';
         config.devices = sortDevices(config.devices || []);
         const response = await fetch('/api/pricing', {
             method: 'PUT',
@@ -67,6 +68,7 @@
             throw new Error(error || `Unable to save pricing.json (${response.status})`);
         }
         setStatus('Saved pricing.json');
+        if (wasViewingDevices) render();
     };
 
     const markDirty = () => setStatus('Unsaved changes');
