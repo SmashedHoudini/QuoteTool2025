@@ -184,7 +184,11 @@
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-1 text-black">
                             <div className="bg-white p-6 border border-black"><div className="mb-4 text-[#f50a23]"><Icon name="CheckCircle" /></div><h4 className="font-black text-lg mb-2">Unlimited repairs</h4><p className="text-sm font-medium text-gray-600 leading-snug">$0 cracked screen repairs for eligible devices.</p></div>
                             <div className="bg-white p-6 border border-black"><div className="mb-4 text-[#f50a23]"><Icon name="Zap" /></div><h4 className="font-black text-lg mb-2">Speed of service</h4><p className="text-sm font-medium text-gray-600 leading-snug">Replacements delivered as soon as the next day.</p></div>
-                            <div className="bg-white p-6 border border-black"><div className="mb-4 text-[#f50a23]"><Icon name="Shield" /></div><h4 className="font-black text-lg mb-2">Full protection</h4><p className="text-sm font-medium text-gray-600 leading-snug">Covers loss, theft, damage, and defects.</p></div>
+                            <div className="bg-white p-6 border border-black"><div className="mb-4 text-[#f50a23]"><Icon name="Shield" /></div><h4 className="font-black text-lg mb-2">Full protection</h4><p className="text-sm font-medium text-gray-600 leading-snug">Covers loss, theft, damage, and post-warranty defects.</p></div>
+                            <div className="bg-white p-6 border border-black"><div className="mb-4 text-[#f50a23]"><Icon name="PhoneOff" /></div><h4 className="font-black text-lg mb-2">Call Filter Plus</h4><p className="text-sm font-medium text-gray-600 leading-snug">Identify unknown callers and prevent spam risk.</p></div>
+                            <div className="bg-white p-6 border border-black"><div className="mb-4 text-[#f50a23]"><Icon name="ShieldAlert" /></div><h4 className="font-black text-lg mb-2">Verizon Digital Security</h4><p className="text-sm font-medium text-gray-600 leading-snug">Antivirus, Safe Browsing, Wifi Security, Dark Web Monitoring, and Indentity Restoration Services.</p></div>
+                            <div className="bg-white p-6 border border-black"><div className="mb-4 text-[#f50a23]"><Icon name="Headset" /></div><h4 className="font-black text-lg mb-2">24/7 Tech Coach</h4><p className="text-sm font-medium text-gray-600 leading-snug">On-demand expert help for all your tech.</p></div>
+                            
                         </div>
                     </div>
                 </div>
