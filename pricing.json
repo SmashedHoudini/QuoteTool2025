@@ -142,7 +142,7 @@
       "manufacturer": "Skyus",
       "model": "Dragon Router",
       "storage": "",
-      "price": 399.99
+      "price": 350
     },
     {
       "id": "verizon-business-internet-gateway",
@@ -184,6 +184,18 @@
           "discountSlots": 0
         },
         {
+          "name": "BYOD Business",
+          "costs": [
+            30,
+            30,
+            30,
+            30,
+            30
+          ],
+          "autopay": 0,
+          "discountSlots": 0
+        },
+        {
           "name": "Custom",
           "costs": [
             0,
@@ -209,7 +221,7 @@
       "watchPlans": [
         {
           "name": "Business Watch",
-          "price": 10
+          "price": 15
         },
         {
           "name": "Custom",
@@ -286,7 +298,8 @@
           "Watch": 5,
           "Custom": 0,
           "Business Internet": 0,
-          "One Talk": 0
+          "One Talk": 0,
+          "Reveal": 0
         },
         "individualProtection": {
           "Smartphone": 18,
@@ -342,7 +355,7 @@
           "name": "Business Internet",
           "planKey": "businessInternetPlans",
           "planPricing": "flat",
-          "icon": "Smartphone",
+          "icon": "Wifi",
           "hasHardware": true,
           "protectionEligible": false,
           "multiDeviceProtectionEligible": false,
@@ -355,8 +368,21 @@
           "name": "One Talk",
           "planKey": "oneTalkPlans",
           "planPricing": "flat",
-          "icon": "Smartphone",
+          "icon": "MonitorSmartphone",
           "hasHardware": true,
+          "protectionEligible": false,
+          "multiDeviceProtectionEligible": false,
+          "earnsConnectedDiscountSlots": false,
+          "connectedDiscountEligible": false,
+          "mobileHomeDiscountEligible": false,
+          "customType": false
+        },
+        {
+          "name": "Reveal",
+          "planKey": "revealPlans",
+          "planPricing": "flat",
+          "icon": "Truck",
+          "hasHardware": false,
           "protectionEligible": false,
           "multiDeviceProtectionEligible": false,
           "earnsConnectedDiscountSlots": false,
@@ -404,6 +430,24 @@
           "mhDiscount": 30
         },
         {
+          "name": "500MB Internet Backup",
+          "price": 10,
+          "autopay": 0,
+          "mhDiscount": 0
+        },
+        {
+          "name": "1GB Internet Backup",
+          "price": 20,
+          "autopay": 0,
+          "mhDiscount": 0
+        },
+        {
+          "name": "3GB Internet Backup",
+          "price": 30,
+          "autopay": 0,
+          "mhDiscount": 0
+        },
+        {
           "name": "Custom",
           "price": 0,
           "autopay": 0,
@@ -426,6 +470,32 @@
         {
           "name": "One Talk Auto-Receptionist",
           "price": 20,
+          "autopay": 0,
+          "mhDiscount": 0
+        },
+        {
+          "name": "One Talk Second Number",
+          "price": 20,
+          "autopay": 0,
+          "mhDiscount": 0
+        },
+        {
+          "name": "Custom",
+          "price": 0,
+          "autopay": 0,
+          "mhDiscount": 0
+        }
+      ],
+      "revealPlans": [
+        {
+          "name": "Reveal Starter",
+          "price": 20,
+          "autopay": 0,
+          "mhDiscount": 0
+        },
+        {
+          "name": "Custom",
+          "price": 0,
           "autopay": 0,
           "mhDiscount": 0
         }

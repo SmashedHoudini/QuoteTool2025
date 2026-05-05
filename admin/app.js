@@ -16,7 +16,7 @@
     ];
 
     const PLAN_PRICING_OPTIONS = ['flat', 'tiered'];
-    const ICON_OPTIONS = ['Smartphone', 'Tablet', 'Watch', 'Wifi', 'Phone', 'BriefcaseBusiness', 'MonitorSmartphone', 'Headphones', 'Router'];
+    const ICON_OPTIONS = ['Smartphone', 'Tablet', 'Watch', 'Wifi', 'Phone', 'BriefcaseBusiness', 'MonitorSmartphone', 'Headphones', 'Router', 'Truck'];
     const EMPTY_PLANS = {
         smartphonePlans: { name: 'New Smartphone Plan', costs: [0, 0, 0, 0], autopay: 0, discountSlots: 0 },
         tabletPlans: { name: 'New Tablet Plan', price: 0 },
