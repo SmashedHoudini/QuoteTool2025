@@ -13,6 +13,9 @@
 const { useState, useMemo, useEffect } = React;
 const {
     loadPricingConfig,
+    getPricingProfile,
+    getLineTypes,
+    getLineType,
     calculateQuote,
     createLine,
     copyLine,
@@ -44,12 +47,14 @@ const VMP_CALCULATOR_TOOL = window.QuoteTool.tools?.vmpCalculator;
 const VMPCalculator = VMP_CALCULATOR_TOOL?.enabled ? VMP_CALCULATOR_TOOL.Component : null;
 
 const App = ({ config }) => {
-    const SMARTPHONE_PLANS = config.smartphonePlans;
-    const TABLET_PLANS = config.tabletPlans;
-    const WATCH_PLANS = config.watchPlans;
-    const HOME_INTERNET_PLANS = config.homeInternetPlans;
-    const PERKS = config.perks;
-    const FINANCING_MONTHS = config.quoteSettings.financingMonths;
+    const [quoteProfileKey, setQuoteProfileKey] = useState(window.QuoteTool.DEFAULT_PROFILE_KEY || 'consumer');
+    const activeConfig = useMemo(() => getPricingProfile(config, quoteProfileKey), [config, quoteProfileKey]);
+    const LINE_TYPES = getLineTypes(activeConfig);
+    const PERKS = activeConfig.perks;
+    const ADD_ON_LABEL = activeConfig.addOnLabel || 'Perks';
+    const BUNDLE_DISCOUNT_LABEL = quoteProfileKey === 'smb' ? 'Bundle Discount' : 'Mobile + Home Discount';
+    const isBusinessQuote = quoteProfileKey === 'smb';
+    const FINANCING_MONTHS = activeConfig.quoteSettings.financingMonths;
     const [view, setView] = useState('rep');
     const [previousQuoteView, setPreviousQuoteView] = useState('rep');
     const [customerViewMode, setCustomerViewMode] = useState('detailed');
@@ -100,6 +105,7 @@ const App = ({ config }) => {
                 if (state.multiDeviceProtection !== undefined) setMultiDeviceProtection(state.multiDeviceProtection);
                 if (state.oneTimeCredits) setOneTimeCredits(state.oneTimeCredits);
                 if (state.includeEstimatedTaxes !== undefined) setIncludeEstimatedTaxes(state.includeEstimatedTaxes);
+                if (state.quoteProfileKey) setQuoteProfileKey(state.quoteProfileKey);
                 if (state.customerName) {
                     setCustomerName(state.customerName);
                     setShowNameField(true);
@@ -110,7 +116,7 @@ const App = ({ config }) => {
         }
         
         if (!loadedFromHash && lines.length === 0) {
-            addLine('Smartphone');
+            addLine(LINE_TYPES.find(type => !type.customType)?.name || 'Smartphone');
         }
     }, []);
 
@@ -180,7 +186,8 @@ const App = ({ config }) => {
             multiDeviceProtection,
             oneTimeCredits,
             includeEstimatedTaxes,
-            customerName
+            customerName,
+            quoteProfileKey
         });
 
         if (copyTextToClipboard(shareUrl)) {
@@ -190,7 +197,7 @@ const App = ({ config }) => {
     };
 
     const addLine = (type) => {
-        setLines(prev => [...prev, createLine(type, prev.length + 1, config)]);
+        setLines(prev => [...prev, createLine(type, prev.length + 1, activeConfig)]);
     };
 
     const copyLastLine = () => {
@@ -200,10 +207,24 @@ const App = ({ config }) => {
     };
 
     const removeLine = (id) => setLines(prev => prev.filter(l => l.id !== id));
+
+    const switchQuoteProfile = (profileKey) => {
+        if (profileKey === quoteProfileKey) return;
+        const nextConfig = getPricingProfile(config, profileKey);
+        const nextTypes = getLineTypes(nextConfig);
+        const fallbackType = nextTypes.find(type => !type.customType)?.name || 'Smartphone';
+        setQuoteProfileKey(profileKey);
+        setMultiDeviceProtection(false);
+        setLines(prev => prev.map(line => {
+            const nextType = nextTypes.some(type => type.name === line.type) ? line.type : fallbackType;
+            return withPlanDefaultForType(line, { type: nextType, perks: [] }, nextConfig);
+        }));
+        setActivePerkLineId(null);
+    };
     
     const updateLine = (id, updates) => {
         setLines(prev => prev.map(l => (
-            l.id === id ? withPlanDefaultForType(l, updates, config) : l
+            l.id === id ? withPlanDefaultForType(l, updates, activeConfig) : l
         )));
     };
 
@@ -342,11 +363,18 @@ const App = ({ config }) => {
     };
 
     const getLineIconName = (lineType) => {
-        if (lineType === 'Tablet') return 'Tablet';
-        if (lineType === 'Watch') return 'Watch';
-        if (lineType === 'Home Internet') return 'Wifi';
-        return 'Smartphone';
+        return getLineType(activeConfig, lineType).icon || 'Smartphone';
     };
+
+    const getPlansForLineType = (lineType) => {
+        const typeConfig = getLineType(activeConfig, lineType);
+        return typeConfig.planKey ? (activeConfig[typeConfig.planKey] || []) : [];
+    };
+
+    const isCustomLineType = (lineType) => getLineType(activeConfig, lineType).customType;
+    const hasHardwareForLineType = (lineType) => getLineType(activeConfig, lineType).hasHardware !== false;
+    const hasProtectionForLineType = (lineType) => getLineType(activeConfig, lineType).protectionEligible !== false;
+    const isTieredLineType = (lineType) => getLineType(activeConfig, lineType).planPricing === 'tiered';
 
     const getOneTimeItemType = (item) => item.type || 'credit';
 
@@ -370,7 +398,8 @@ const App = ({ config }) => {
         accountAdjustments,
         oneTimeCredits,
         includeEstimatedTaxes
-    }, config), [lines, multiDeviceProtection, accountAdjustments, oneTimeCredits, includeEstimatedTaxes, config]);
+    }, activeConfig), [lines, multiDeviceProtection, accountAdjustments, oneTimeCredits, includeEstimatedTaxes, activeConfig]);
+    const hasAutopaySavings = calculations.totalAutopay > 0;
 
     const paginatedContent = useMemo(() => paginateQuote({
         calculations,
@@ -388,7 +417,7 @@ const App = ({ config }) => {
     const activeHardwareLine = lines.find(l => l.id === activeHardwareLineId);
     const activeCustomTaxLine = lines.find(l => l.id === activeCustomTaxLineId);
     const activeCustomProtectionLine = lines.find(l => l.id === activeCustomProtectionLineId);
-    const catalogDevicesForLine = (config.devices || [])
+    const catalogDevicesForLine = (activeConfig.devices || [])
         .filter(device => device.enabled !== false && device.type === activeHardwareLine?.type);
     const deviceManufacturers = [...new Set(catalogDevicesForLine.map(device => device.manufacturer).filter(Boolean))].sort((a, b) => a.localeCompare(b));
     const manufacturerDevices = catalogDevicesForLine.filter(device => device.manufacturer === selectedDeviceManufacturer);
@@ -499,6 +528,23 @@ const App = ({ config }) => {
                             </button>
                         </div>
 
+                        <div className="w-full bg-stone-50 border border-black/10 rounded-2xl p-2">
+                            <div className="grid grid-cols-2 gap-1">
+                                {[
+                                    ['consumer', 'Consumer'],
+                                    ['smb', 'SMB']
+                                ].map(([key, label]) => (
+                                    <button
+                                        key={key}
+                                        onClick={() => switchQuoteProfile(key)}
+                                        className={`px-3 py-3 rounded-xl text-xs font-black transition-all ${quoteProfileKey === key ? 'bg-black text-white shadow-sm' : 'text-black/50 hover:text-black hover:bg-white'}`}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
                         <button onClick={() => setIncludeEstimatedTaxes(prev => !prev)} className="w-full bg-stone-50 border border-black/10 rounded-2xl p-4 flex items-center justify-between text-left hover:border-black/20 transition-colors">
                             <div>
                                 <p className="text-sm font-black">Est. Tax/Sur.</p>
@@ -567,25 +613,22 @@ const App = ({ config }) => {
                                                 )}
                                             </div>
                                             <select value={line.type} onChange={e => updateLine(line.id, { type: e.target.value, perks: [] })} className="w-full px-3 py-2 bg-stone-50 border border-black/5 rounded-lg text-sm font-bold outline-none text-black">
-                                                <option>Smartphone</option><option>Tablet</option><option>Watch</option><option>Home Internet</option><option>Custom</option>
+                                                {LINE_TYPES.map(type => <option key={type.name}>{type.name}</option>)}
                                             </select>
-                                            {line.type === 'Custom' && <input value={line.customLineTypeLabel} onFocus={e => e.target.select()} onChange={e => updateLine(line.id, { customLineTypeLabel: e.target.value })} placeholder="Legacy Line Label" className="w-full bg-white border border-black/10 px-3 py-2 rounded-lg text-xs font-bold focus:border-black outline-none" />}
-                                            {line.type !== 'Custom' && (
+                                            {isCustomLineType(line.type) && <input value={line.customLineTypeLabel} onFocus={e => e.target.select()} onChange={e => updateLine(line.id, { customLineTypeLabel: e.target.value })} placeholder="Legacy Line Label" className="w-full bg-white border border-black/10 px-3 py-2 rounded-lg text-xs font-bold focus:border-black outline-none" />}
+                                            {!isCustomLineType(line.type) && (
                                                 <select value={line.planName} onChange={e => updateLine(line.id, { planName: e.target.value })} className="w-full px-3 py-2 bg-stone-50 border border-black/5 rounded-lg text-sm font-bold outline-none text-black">
-                                                    {line.type === 'Smartphone' && SMARTPHONE_PLANS.map(p => <option key={p.name}>{p.name}</option>)}
-                                                    {line.type === 'Tablet' && TABLET_PLANS.map(p => <option key={p.name}>{p.name}</option>)}
-                                                    {line.type === 'Watch' && WATCH_PLANS.map(p => <option key={p.name}>{p.name}</option>)}
-                                                    {line.type === 'Home Internet' && HOME_INTERNET_PLANS.map(p => <option key={p.name}>{p.name}</option>)}
+                                                    {getPlansForLineType(line.type).map(p => <option key={p.name}>{p.name}</option>)}
                                                 </select>
                                             )}
-                                            {(line.planName === 'Custom' || line.type === 'Custom') && (
+                                            {(line.planName === 'Custom' || isCustomLineType(line.type)) && (
                                                 <div className="mt-2 space-y-3 p-3 bg-stone-100 rounded-xl border border-black/5">
                                                     <input value={line.customPlanName} onFocus={e => e.target.select()} onChange={e => updateLine(line.id, { customPlanName: e.target.value })} placeholder="Custom Plan Name" className="w-full bg-white border border-black/10 px-2 py-1.5 rounded-lg text-xs font-bold focus:border-black outline-none" />
                                                     <div className="grid grid-cols-2 gap-2 text-black">
                                                         <div className="space-y-0.5"><label className="text-[8px] font-bold uppercase opacity-40">Base Price</label><input type="number" inputMode="decimal" onWheel={e => e.currentTarget.blur()} value={line.customPlanPrice || ''} onFocus={e => e.target.select()} onChange={e => updateLine(line.id, { customPlanPrice: e.target.value })} placeholder="0.00" className="w-full bg-white border border-black/10 px-2 py-1.5 rounded-lg text-xs font-bold focus:border-black outline-none" /></div>
                                                         <div className="space-y-0.5"><label className="text-[8px] font-bold uppercase opacity-40">AP Disc</label><input type="number" inputMode="decimal" onWheel={e => e.currentTarget.blur()} value={line.customAutopayDiscount || ''} onFocus={e => e.target.select()} onChange={e => updateLine(line.id, { customAutopayDiscount: e.target.value })} placeholder="0.00" className="w-full bg-white border border-black/10 px-2 py-1.5 rounded-lg text-xs font-bold focus:border-black outline-none" /></div>
                                                     </div>
-                                                    {line.type === 'Smartphone' && (
+                                                    {isTieredLineType(line.type) && (
                                                         <div className="flex items-center justify-between text-[10px] font-bold opacity-60"><span>Slots:</span><div className="flex items-center gap-2 bg-white px-2 py-1 rounded-md border border-black/10"><button onClick={() => updateLine(line.id, { customDiscountSlots: Math.max(0, (parseInt(line.customDiscountSlots) || 0) - 1) })}>-</button><span className="font-black">{line.customDiscountSlots}</span><button onClick={() => updateLine(line.id, { customDiscountSlots: (parseInt(line.customDiscountSlots) || 0) + 1 })}>+</button></div></div>
                                                     )}
                                                 </div>
@@ -594,9 +637,9 @@ const App = ({ config }) => {
 
                                         <div className="flex-grow border-t lg:border-t-0 lg:border-l border-black/5 pt-5 lg:pt-0 pl-0 lg:pl-6 space-y-3 shrink-0 min-w-[280px]">
                                             <span className="text-[11px] font-bold text-black/40 block uppercase tracking-wider">Hardware</span>
-                                            {line.type !== 'Home Internet' ? (
+                                            {hasHardwareForLineType(line.type) ? (
                                                 <div className="flex flex-row gap-3 md:gap-4 items-center">
-                                                    <button onClick={() => openHardwareModal(line.id)} className="hardware-btn flex-1 basis-1/2 w-full min-w-0 md:min-w-[220px] px-4 md:px-6 py-4 bg-stone-50 border border-black/5 rounded-xl hover:bg-black hover:text-white flex items-center gap-3 text-left shadow-sm active:scale-95 transition-all text-black"><Icon name="Smartphone" size={20} className="shrink-0" /><div className="flex flex-col min-w-0"><span className="text-sm font-bold truncate max-w-[160px]">{line.deviceName || 'Select device'}</span><span className="text-[10px] opacity-60 font-medium">Configure</span></div></button>
+                                                    <button onClick={() => openHardwareModal(line.id)} className="hardware-btn flex-1 basis-1/2 w-full min-w-0 md:min-w-[220px] px-4 md:px-6 py-4 bg-stone-50 border border-black/5 rounded-xl hover:bg-black hover:text-white flex items-center gap-3 text-left shadow-sm active:scale-95 transition-all text-black"><Icon name={getLineIconName(line.type)} size={20} className="shrink-0" /><div className="flex flex-col min-w-0"><span className="text-sm font-bold truncate max-w-[160px]">{line.deviceName || 'Select device'}</span><span className="text-[10px] opacity-60 font-medium">Configure</span></div></button>
                                                     <div className="flex flex-col flex-1 basis-1/2 min-w-0 items-center text-center"><span className="text-[10px] opacity-40 font-bold uppercase tracking-wider">MONTHLY PAYMENT</span><span className="text-xl font-black">{formatDollars(line.deviceMonthly)}</span></div>
                                                 </div>
                                             ) : <div className="h-full flex items-center text-black/20 italic text-sm">Not applicable</div>}
@@ -604,18 +647,18 @@ const App = ({ config }) => {
 
                                         <div className="w-full lg:w-52 lg:shrink-0 grid grid-cols-2 lg:flex lg:flex-col gap-2 border-t lg:border-t-0 lg:border-l border-black/5 pt-5 lg:pt-0 pl-0 lg:pl-6">
                                             <span className="col-span-2 text-[11px] font-bold text-black/40 uppercase tracking-wider">Add-ons & Adjust</span>
-                                            <button onClick={() => setActivePerkLineId(line.id)} className="flex items-center justify-between px-3 lg:px-5 py-3 bg-yellow-100 border border-yellow-300 rounded-lg text-xs font-bold hover:bg-yellow-200 transition-colors text-left text-black"><span className="flex items-center gap-2 min-w-0"><Icon name="Gift" size={16}/> Perks ({line.perks.length})</span><Icon name="ChevronRight" size={16} /></button>
+                                            <button onClick={() => setActivePerkLineId(line.id)} className="flex items-center justify-between px-3 lg:px-5 py-3 bg-yellow-100 border border-yellow-300 rounded-lg text-xs font-bold hover:bg-yellow-200 transition-colors text-left text-black"><span className="flex items-center gap-2 min-w-0"><Icon name="Gift" size={16}/> {ADD_ON_LABEL} ({line.perks.length})</span><Icon name="ChevronRight" size={16} /></button>
                                             <button onClick={() => setActiveAdjLineId(line.id)} className="flex items-center justify-between px-3 lg:px-5 py-3 bg-stone-100 border border-stone-300 rounded-lg text-xs font-bold hover:bg-stone-200 transition-colors text-left text-black"><span className="flex items-center gap-2 min-w-0"><Icon name="PlusCircle" size={16}/> Adjust ({line.adjustments.length})</span><Icon name="ChevronRight" size={16} /></button>
-                                            {includeEstimatedTaxes && line.type === 'Custom' && (
+                                            {includeEstimatedTaxes && isCustomLineType(line.type) && (
                                                 <button onClick={() => setActiveCustomTaxLineId(line.id)} className="col-span-2 flex items-center justify-between px-5 py-2.5 border rounded-lg text-xs font-bold transition-all bg-stone-50 text-black/60 hover:bg-stone-100"><span className="flex items-center gap-2"><Icon name="ReceiptText" size={16} /> Taxes/Sur.</span><span className="text-black/40">${parseFloat(line.customTaxSurcharge || 0).toFixed(2)}</span></button>
                                             )}
-                                            {!multiDeviceProtection && line.type !== 'Custom' && line.type !== 'Home Internet' && (
+                                            {!multiDeviceProtection && !isCustomLineType(line.type) && hasProtectionForLineType(line.type) && (
                                                 <button onClick={() => updateLine(line.id, { individualProtection: !line.individualProtection })} className={`col-span-2 flex items-center gap-2 px-5 py-2.5 border rounded-lg text-xs font-bold transition-all ${line.individualProtection ? 'bg-black text-white' : 'bg-stone-50 text-black/60'}`}><Icon name="ShieldCheck" size={16} /> {line.individualProtection ? 'VMP protected' : 'Add protection'}</button>
                                             )}
-                                            {!multiDeviceProtection && line.type === 'Custom' && (
+                                            {!multiDeviceProtection && isCustomLineType(line.type) && (
                                                 <button onClick={() => setActiveCustomProtectionLineId(line.id)} className={`col-span-2 flex items-center justify-between px-5 py-2.5 border rounded-lg text-xs font-bold transition-all ${parseFloat(line.customProtectionCost || 0) > 0 ? 'bg-black text-white' : 'bg-stone-50 text-black/60'}`}><span className="flex items-center gap-2"><Icon name="ShieldCheck" size={16} /> {parseFloat(line.customProtectionCost || 0) > 0 ? 'VMP protected' : 'Add protection'}</span>{parseFloat(line.customProtectionCost || 0) > 0 && <span>${parseFloat(line.customProtectionCost || 0).toFixed(2)}</span>}</button>
                                             )}
-                                            {multiDeviceProtection && line.type === 'Custom' && (
+                                            {multiDeviceProtection && isCustomLineType(line.type) && (
                                                 <button onClick={() => updateLine(line.id, { customIncludeInVmdp: !line.customIncludeInVmdp })} className={`col-span-2 flex items-center gap-2 px-5 py-2.5 border rounded-lg text-xs font-bold transition-all ${line.customIncludeInVmdp ? 'bg-black text-white' : 'bg-stone-50 text-black/60'}`}><Icon name="ShieldCheck" size={16} /> Include in VMDP</button>
                                             )}
                                             <button onClick={() => removeLine(line.id)} className="col-span-2 mt-auto flex items-center justify-center gap-2 px-5 py-2 text-xs font-bold text-verizon-red hover:bg-red-50 rounded-lg transition-colors"><Icon name="Trash2" size={16} /> Remove line</button>
@@ -631,7 +674,7 @@ const App = ({ config }) => {
                         </div>
 
                         <div className="flex flex-row gap-4 mt-8">
-                            <button onClick={() => addLine('Smartphone')} className="flex-grow py-8 border-2 border-dashed border-black/10 rounded-2xl flex flex-col items-center justify-center gap-2 text-black/40 hover:text-verizon-red hover:border-red-200 transition-all group"><div className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center group-hover:scale-110 transition-transform"><Icon name="Plus" size={24} /></div><span className="font-bold text-base">Add a line</span></button>
+                            <button onClick={() => addLine(LINE_TYPES.find(type => !type.customType)?.name || 'Smartphone')} className="flex-grow py-8 border-2 border-dashed border-black/10 rounded-2xl flex flex-col items-center justify-center gap-2 text-black/40 hover:text-verizon-red hover:border-red-200 transition-all group"><div className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center group-hover:scale-110 transition-transform"><Icon name="Plus" size={24} /></div><span className="font-bold text-base">Add a line</span></button>
                             <button onClick={copyLastLine} className="shrink-0 px-6 md:px-10 py-8 border-2 border-dashed border-black/10 rounded-2xl flex flex-col items-center justify-center gap-2 text-black/40 hover:text-black hover:border-black/20 hover:bg-stone-50 transition-all group"><div className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center group-hover:scale-110 transition-transform"><Icon name="Copy" size={20} /></div><span className="font-bold text-sm opacity-60 group-hover:opacity-100 whitespace-nowrap">Copy last</span></button>
                         </div>
 
@@ -647,15 +690,15 @@ const App = ({ config }) => {
                     /* CUSTOMER VIEW */
                     <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-500 pb-20 text-black">
                         <header className="text-center space-y-1">
-                            <h1 className="text-2xl md:text-3xl font-black text-black tracking-tight leading-none">{customerName.trim() ? <>Hey {customerName.trim().split(' ')[0]},<br />Here's Your Verizon Quote.</> : "Your Verizon Quote."}</h1>
+                            <h1 className="text-2xl md:text-3xl font-black text-black tracking-tight leading-none">{customerName.trim() ? <>Hey {customerName.trim().split(' ')[0]},<br />Here's Your Verizon{isBusinessQuote ? ' Business' : ''} Quote.</> : `Your Verizon${isBusinessQuote ? ' Business' : ''} Quote.`}</h1>
                             <p className="text-sm md:text-base text-black/60 font-medium italic opacity-70">Reliable, clear, and built for you.</p>
                         </header>
                         <div className="bg-white rounded-[40px] shadow-xl overflow-hidden border border-black/5">
                             <div className="bg-verizon-red p-8 md:p-10 text-white flex flex-col lg:flex-row justify-between items-center text-center lg:text-left gap-4">
-                                <div className="flex-1"><h2 className="text-lg md:text-xl font-black mb-1">Monthly total</h2><p className="text-white/70 text-[11px] md:text-xs font-medium uppercase tracking-widest opacity-80">with Auto Pay & Paper-free billing</p></div>
+                                <div className="flex-1"><h2 className="text-lg md:text-xl font-black mb-1">Monthly total</h2>{hasAutopaySavings && <p className="text-white/70 text-[11px] md:text-xs font-medium uppercase tracking-widest opacity-80">with Auto Pay & Paper-free billing</p>}</div>
                                 <div className="text-right text-white">
                                     <div className="flex items-baseline justify-center md:justify-end gap-1"><span className="text-5xl md:text-6xl font-black tracking-tighter leading-none">${calculations.total.toFixed(2)}</span><span className="text-xl font-bold opacity-40">/mo</span></div>
-                                    <div className="flex flex-col items-center lg:items-end mt-2"><p className="text-white text-[10px] uppercase tracking-widest font-bold opacity-60">{includeEstimatedTaxes ? 'Incl. Taxes & Surcharges' : '+ Taxes & Surcharges'}</p><p className="text-white font-black text-[11px] uppercase tracking-widest opacity-100 mt-1">Estimated ${calculations.totalWithoutAutopay.toFixed(2)} without Auto Pay</p></div>
+                                    <div className="flex flex-col items-center lg:items-end mt-2"><p className="text-white text-[10px] uppercase tracking-widest font-bold opacity-60">{includeEstimatedTaxes ? 'Incl. Taxes & Surcharges' : '+ Taxes & Surcharges'}</p>{hasAutopaySavings && <p className="text-white font-black text-[11px] uppercase tracking-widest opacity-100 mt-1">Estimated ${calculations.totalWithoutAutopay.toFixed(2)} without Auto Pay</p>}</div>
                                 </div>
                             </div>
                             
@@ -675,7 +718,7 @@ const App = ({ config }) => {
                                                                 <div className="mt-3 space-y-1 border-l-2 border-stone-100 pl-4 py-0.5">
                                                                     <p className="text-sm font-medium opacity-50">${line.planBase.toFixed(2)} {line.displayName}</p>
                                                                     {line.autopaySaving > 0 && <p className="text-sm text-emerald-600 font-bold">-${line.autopaySaving.toFixed(2)} Auto Pay & Paper-free Discount</p>}
-                                                                    {line.mhSaving > 0 && <p className="text-sm text-emerald-600 font-bold">-${line.mhSaving.toFixed(2)} Mobile + Home Discount</p>}
+                                                                    {line.mhSaving > 0 && <p className="text-sm text-emerald-600 font-bold">-${line.mhSaving.toFixed(2)} {BUNDLE_DISCOUNT_LABEL}</p>}
                                                                     {line.isDiscounted && <p className="text-sm text-emerald-600 font-bold">-${line.connectedDiscountAmt.toFixed(2)} Connected Device Discount</p>}
                                                                     {line.devicePrice > 0 && <p className="text-sm font-medium opacity-50">{formatDollars(line.deviceMonthly)} Device Payment</p>}
                                                                     {line.perks.map(pName => <p key={pName} className="text-sm font-medium opacity-50">${getPerkCost(pName).toFixed(2)} {pName}</p>)}
@@ -785,15 +828,21 @@ const App = ({ config }) => {
                                     {/* HEADER (Only on Page 1) */}
                                     {page.isFirst && (
                                         <>
-                                            <header className="text-center space-y-2 mb-10">
-                                                <h1 className="text-3xl font-black text-black tracking-tight leading-none">{customerName.trim() ? <>Hey {customerName.trim().split(' ')[0]},<br />Here's Your Verizon Quote.</> : "Your Verizon Quote."}</h1>
-                                                <p className="text-sm text-black/60 font-medium italic">Reliable, clear, and built for you.</p>
-                                            </header>
+                                            {isBusinessQuote ? (
+                                                <header className="text-left mb-10">
+                                                    <img src="assets/verizon-business.svg" alt="verizon business" className="w-[168px] h-auto" />
+                                                </header>
+                                            ) : (
+                                                <header className="text-center space-y-2 mb-10">
+                                                    <h1 className="text-3xl font-black text-black tracking-tight leading-none">{customerName.trim() ? <>Hey {customerName.trim().split(' ')[0]},<br />Here's Your Verizon Quote.</> : "Your Verizon Quote."}</h1>
+                                                    <p className="text-sm text-black/60 font-medium italic">Reliable, clear, and built for you.</p>
+                                                </header>
+                                            )}
 
                                             <div className="border-b-4 border-black pb-6 flex justify-between items-end mb-8">
                                                 <div>
                                                     <h2 className="text-xl font-black mb-1">Monthly total</h2>
-                                                    <p className="text-black/70 text-xs font-medium uppercase tracking-widest">with Auto Pay & Paper-free billing</p>
+                                                    {hasAutopaySavings && <p className="text-black/70 text-xs font-medium uppercase tracking-widest">with Auto Pay & Paper-free billing</p>}
                                                 </div>
                                                 <div className="text-right">
                                                     <div className="flex items-baseline justify-end gap-1 mb-1">
@@ -802,7 +851,7 @@ const App = ({ config }) => {
                                                     </div>
                                                     <div className="flex flex-col items-end mt-4">
                                                         <p className="text-[10px] uppercase tracking-widest font-bold opacity-60 pt-1">{includeEstimatedTaxes ? 'Incl. Taxes & Surcharges' : '+ Taxes & Surcharges'}</p>
-                                                        <p className="font-black text-[11px] uppercase tracking-widest mt-1">Estimated ${calculations.totalWithoutAutopay.toFixed(2)} without Auto Pay</p>
+                                                        {hasAutopaySavings && <p className="font-black text-[11px] uppercase tracking-widest mt-1">Estimated ${calculations.totalWithoutAutopay.toFixed(2)} without Auto Pay</p>}
                                                     </div>
                                                 </div>
                                             </div>
@@ -829,7 +878,7 @@ const App = ({ config }) => {
                                                                         <div className="mt-1.5 space-y-0.5 border-l-2 border-black/10 pl-3 py-0.5">
                                                                             <p className="text-xs font-medium opacity-80">${line.planBase.toFixed(2)} {line.displayName}</p>
                                                                             {line.autopaySaving > 0 && <p className="text-xs text-black font-semibold opacity-80">-${line.autopaySaving.toFixed(2)} Auto Pay & Paper-free Discount</p>}
-                                                                            {line.mhSaving > 0 && <p className="text-xs text-black font-semibold opacity-80">-${line.mhSaving.toFixed(2)} Mobile + Home Discount</p>}
+                                                                            {line.mhSaving > 0 && <p className="text-xs text-black font-semibold opacity-80">-${line.mhSaving.toFixed(2)} {BUNDLE_DISCOUNT_LABEL}</p>}
                                                                             {line.isDiscounted && <p className="text-xs text-black font-semibold opacity-80">-${line.connectedDiscountAmt.toFixed(2)} Connected Device Discount</p>}
                                                                             {line.devicePrice > 0 && <p className="text-xs font-medium opacity-80">{formatDollars(line.deviceMonthly)} Device Payment</p>}
                                                                             {line.perks.map(pName => <p key={pName} className="text-xs font-medium opacity-80">${getPerkCost(pName).toFixed(2)} {pName}</p>)}
@@ -1079,7 +1128,7 @@ const App = ({ config }) => {
             {activePerkLineId && lines.find(l => l.id === activePerkLineId) && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setActivePerkLineId(null)}>
                     <div className="relative w-full max-w-2xl bg-white rounded-[40px] overflow-hidden shadow-2xl text-black" onClick={e => e.stopPropagation()}>
-                        <div className="p-10 border-b border-black/5 bg-stone-50 flex justify-between items-center"><h2 className="text-xl font-black">Select perks.</h2><button onClick={() => setActivePerkLineId(null)} className="p-3 hover:bg-black/5 rounded-full transition-colors text-black"><Icon name="X" size={28}/></button></div>
+                        <div className="p-10 border-b border-black/5 bg-stone-50 flex justify-between items-center"><h2 className="text-xl font-black">Select {ADD_ON_LABEL.toLowerCase()}.</h2><button onClick={() => setActivePerkLineId(null)} className="p-3 hover:bg-black/5 rounded-full transition-colors text-black"><Icon name="X" size={28}/></button></div>
                         <div className="p-10 max-h-[50vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-5">
                             {PERKS.map(perk => {
                                 const line = lines.find(l => l.id === activePerkLineId);
@@ -1089,7 +1138,7 @@ const App = ({ config }) => {
                                 );
                             })}
                         </div>
-                        <div className="p-8 border-t border-black/5 flex justify-between items-center text-black bg-stone-50"><div><p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Total Perks</p><p className="text-3xl font-black text-black">${lines.find(l => l.id === activePerkLineId)?.perks.reduce((acc, pName) => acc + getPerkCost(pName), 0).toFixed(2)}/mo</p></div><button onClick={() => setActivePerkLineId(null)} className="px-14 py-5 bg-verizon-red text-white rounded-2xl font-black text-xl shadow-lg hover:scale-[1.01] active:scale-95 transition-all text-white">Save perks</button></div>
+                        <div className="p-8 border-t border-black/5 flex justify-between items-center text-black bg-stone-50"><div><p className="text-[10px] font-bold opacity-40 uppercase tracking-widest">Total {ADD_ON_LABEL}</p><p className="text-3xl font-black text-black">${lines.find(l => l.id === activePerkLineId)?.perks.reduce((acc, pName) => acc + getPerkCost(pName), 0).toFixed(2)}/mo</p></div><button onClick={() => setActivePerkLineId(null)} className="px-14 py-5 bg-verizon-red text-white rounded-2xl font-black text-xl shadow-lg hover:scale-[1.01] active:scale-95 transition-all text-white">Save {ADD_ON_LABEL.toLowerCase()}</button></div>
                     </div>
                 </div>
             )}

@@ -134,8 +134,304 @@
       "model": "Apple Watch Series 11",
       "storage": "",
       "price": 500
+    },
+    {
+      "id": "skyus-dragon-router",
+      "enabled": true,
+      "type": "Business Internet",
+      "manufacturer": "Skyus",
+      "model": "Dragon Router",
+      "storage": "",
+      "price": 399.99
+    },
+    {
+      "id": "verizon-business-internet-gateway",
+      "enabled": true,
+      "type": "Business Internet",
+      "manufacturer": "Verizon",
+      "model": "Business Internet Gateway",
+      "storage": "",
+      "price": 400
     }
   ],
+  "profiles": {
+    "smb": {
+      "label": "SMB",
+      "addOnLabel": "Add-ons",
+      "smartphonePlans": [
+        {
+          "name": "MyBiz",
+          "costs": [
+            70,
+            60,
+            45,
+            39,
+            34
+          ],
+          "autopay": 5,
+          "discountSlots": 0
+        },
+        {
+          "name": "Business Unlimited",
+          "costs": [
+            50,
+            50,
+            50,
+            50,
+            50
+          ],
+          "autopay": 0,
+          "discountSlots": 0
+        },
+        {
+          "name": "Custom",
+          "costs": [
+            0,
+            0,
+            0,
+            0,
+            0
+          ],
+          "autopay": 0,
+          "discountSlots": 0
+        }
+      ],
+      "tabletPlans": [
+        {
+          "name": "Business Tablet",
+          "price": 20
+        },
+        {
+          "name": "Custom",
+          "price": 0
+        }
+      ],
+      "watchPlans": [
+        {
+          "name": "Business Watch",
+          "price": 10
+        },
+        {
+          "name": "Custom",
+          "price": 0
+        }
+      ],
+      "homeInternetPlans": [
+        {
+          "name": "SMB Internet Plan",
+          "price": 0,
+          "mhDiscount": 0,
+          "autopay": 0
+        },
+        {
+          "name": "Custom",
+          "price": 0,
+          "mhDiscount": 0,
+          "autopay": 0
+        }
+      ],
+      "perks": [
+        {
+          "name": "Premium Network Experience",
+          "cost": 10,
+          "savings": 0
+        },
+        {
+          "name": "50GB Mobile Hotspot",
+          "cost": 5,
+          "savings": 0
+        },
+        {
+          "name": "Enhanced Video Calling",
+          "cost": 5,
+          "savings": 0
+        },
+        {
+          "name": "International Connectivity",
+          "cost": 10,
+          "savings": 0
+        },
+        {
+          "name": "International Calling",
+          "cost": 5,
+          "savings": 0
+        },
+        {
+          "name": "Unlimited Cloud Storage",
+          "cost": 10,
+          "savings": 0
+        },
+        {
+          "name": "Business Mobile Secure+",
+          "cost": 5,
+          "savings": 0
+        },
+        {
+          "name": "Google Workspace Business Standard",
+          "cost": 16,
+          "savings": 0
+        },
+        {
+          "name": "Verizon Business Mobile Internet Security",
+          "cost": 0,
+          "savings": 0
+        }
+      ],
+      "quoteSettings": {
+        "financingMonths": 36,
+        "connectedDeviceDiscountRate": 0.5,
+        "taxes&surcharges": {
+          "Smartphone": 7,
+          "Tablet": 4,
+          "Watch": 5,
+          "Custom": 0,
+          "Business Internet": 0,
+          "One Talk": 0
+        },
+        "individualProtection": {
+          "Smartphone": 18,
+          "Watch": 18,
+          "Tablet": 16
+        },
+        "multiDeviceProtection": {
+          "perLine": 18,
+          "monthlyCap": 49
+        }
+      },
+      "lineTypes": [
+        {
+          "name": "Smartphone",
+          "planKey": "smartphonePlans",
+          "planPricing": "tiered",
+          "icon": "Smartphone",
+          "hasHardware": true,
+          "protectionEligible": true,
+          "multiDeviceProtectionEligible": true,
+          "earnsConnectedDiscountSlots": false,
+          "connectedDiscountEligible": false,
+          "mobileHomeDiscountEligible": false,
+          "customType": false
+        },
+        {
+          "name": "Tablet",
+          "planKey": "tabletPlans",
+          "planPricing": "flat",
+          "icon": "Tablet",
+          "hasHardware": true,
+          "protectionEligible": true,
+          "multiDeviceProtectionEligible": true,
+          "earnsConnectedDiscountSlots": false,
+          "connectedDiscountEligible": false,
+          "mobileHomeDiscountEligible": false,
+          "customType": false
+        },
+        {
+          "name": "Watch",
+          "planKey": "watchPlans",
+          "planPricing": "flat",
+          "icon": "Watch",
+          "hasHardware": true,
+          "protectionEligible": true,
+          "multiDeviceProtectionEligible": true,
+          "earnsConnectedDiscountSlots": false,
+          "connectedDiscountEligible": false,
+          "mobileHomeDiscountEligible": false,
+          "customType": false
+        },
+        {
+          "name": "Business Internet",
+          "planKey": "businessInternetPlans",
+          "planPricing": "flat",
+          "icon": "Smartphone",
+          "hasHardware": true,
+          "protectionEligible": false,
+          "multiDeviceProtectionEligible": false,
+          "earnsConnectedDiscountSlots": false,
+          "connectedDiscountEligible": false,
+          "mobileHomeDiscountEligible": true,
+          "customType": false
+        },
+        {
+          "name": "One Talk",
+          "planKey": "oneTalkPlans",
+          "planPricing": "flat",
+          "icon": "Smartphone",
+          "hasHardware": true,
+          "protectionEligible": false,
+          "multiDeviceProtectionEligible": false,
+          "earnsConnectedDiscountSlots": false,
+          "connectedDiscountEligible": false,
+          "mobileHomeDiscountEligible": false,
+          "customType": false
+        },
+        {
+          "name": "Custom",
+          "planKey": "",
+          "planPricing": "custom",
+          "icon": "Smartphone",
+          "hasHardware": true,
+          "protectionEligible": true,
+          "multiDeviceProtectionEligible": true,
+          "earnsConnectedDiscountSlots": false,
+          "connectedDiscountEligible": false,
+          "mobileHomeDiscountEligible": false,
+          "customType": true
+        }
+      ],
+      "businessInternetPlans": [
+        {
+          "name": "Business Internet Unlimited 25Mbps",
+          "price": 69,
+          "autopay": 0,
+          "mhDiscount": 30
+        },
+        {
+          "name": "5G Business Internet 100Mbps",
+          "price": 69,
+          "autopay": 0,
+          "mhDiscount": 30
+        },
+        {
+          "name": "5G Business Internet 200Mbps",
+          "price": 99,
+          "autopay": 0,
+          "mhDiscount": 30
+        },
+        {
+          "name": "5G Business Internet 400Mbps",
+          "price": 199,
+          "autopay": 0,
+          "mhDiscount": 30
+        },
+        {
+          "name": "Custom",
+          "price": 0,
+          "autopay": 0,
+          "mhDiscount": 0
+        }
+      ],
+      "oneTalkPlans": [
+        {
+          "name": "One Talk Mobile Client",
+          "price": 20,
+          "autopay": 0,
+          "mhDiscount": 0
+        },
+        {
+          "name": "One Talk Desk Phone",
+          "price": 20,
+          "autopay": 0,
+          "mhDiscount": 0
+        },
+        {
+          "name": "One Talk Auto-Receptionist",
+          "price": 20,
+          "autopay": 0,
+          "mhDiscount": 0
+        }
+      ]
+    }
+  },
   "_fileNote": "Editable pricing/config for the V2 quote tool. The app loads this file at startup on GitHub Pages. Change plan names, prices, perk costs, device presets, protection prices, financing months, tax estimates, and discount settings here; change only the math rules in calculations.js.",
   "smartphonePlans": [
     {
@@ -343,5 +639,72 @@
       "perLine": 19,
       "monthlyCap": 68
     }
-  }
+  },
+  "lineTypes": [
+    {
+      "name": "Smartphone",
+      "planKey": "smartphonePlans",
+      "planPricing": "tiered",
+      "icon": "Smartphone",
+      "hasHardware": true,
+      "protectionEligible": true,
+      "multiDeviceProtectionEligible": true,
+      "earnsConnectedDiscountSlots": true,
+      "connectedDiscountEligible": false,
+      "mobileHomeDiscountEligible": false,
+      "customType": false
+    },
+    {
+      "name": "Tablet",
+      "planKey": "tabletPlans",
+      "planPricing": "flat",
+      "icon": "Tablet",
+      "hasHardware": true,
+      "protectionEligible": true,
+      "multiDeviceProtectionEligible": true,
+      "earnsConnectedDiscountSlots": false,
+      "connectedDiscountEligible": true,
+      "mobileHomeDiscountEligible": false,
+      "customType": false
+    },
+    {
+      "name": "Watch",
+      "planKey": "watchPlans",
+      "planPricing": "flat",
+      "icon": "Watch",
+      "hasHardware": true,
+      "protectionEligible": true,
+      "multiDeviceProtectionEligible": true,
+      "earnsConnectedDiscountSlots": false,
+      "connectedDiscountEligible": true,
+      "mobileHomeDiscountEligible": false,
+      "customType": false
+    },
+    {
+      "name": "Home Internet",
+      "planKey": "homeInternetPlans",
+      "planPricing": "flat",
+      "icon": "Wifi",
+      "hasHardware": false,
+      "protectionEligible": false,
+      "multiDeviceProtectionEligible": false,
+      "earnsConnectedDiscountSlots": false,
+      "connectedDiscountEligible": false,
+      "mobileHomeDiscountEligible": true,
+      "customType": false
+    },
+    {
+      "name": "Custom",
+      "planKey": "",
+      "planPricing": "custom",
+      "icon": "Smartphone",
+      "hasHardware": true,
+      "protectionEligible": true,
+      "multiDeviceProtectionEligible": true,
+      "earnsConnectedDiscountSlots": false,
+      "connectedDiscountEligible": false,
+      "mobileHomeDiscountEligible": false,
+      "customType": true
+    }
+  ]
 }

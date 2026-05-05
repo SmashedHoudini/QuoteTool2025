@@ -171,6 +171,23 @@ main {
     border-bottom-color: var(--blue);
 }
 
+.profile-switcher {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 0 0 12px;
+    padding: 8px;
+    border: 1px solid var(--line);
+    background: var(--panel);
+}
+
+.profile-switcher span {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
 .section-header {
     display: flex;
     align-items: end;
@@ -225,6 +242,10 @@ main {
     grid-template-columns: 24px minmax(190px, 1fr) repeat(6, minmax(70px, 1fr)) 36px;
 }
 
+.smb-smartphone-plan-header {
+    grid-template-columns: 24px minmax(190px, 1fr) repeat(7, minmax(70px, 1fr)) 36px;
+}
+
 .perk-header {
     grid-template-columns: 24px minmax(220px, 2fr) repeat(2, minmax(90px, 1fr)) 36px;
 }
@@ -254,6 +275,10 @@ main {
     grid-template-columns: 24px minmax(0, 1fr) 36px;
 }
 
+.line-type-row {
+    grid-template-columns: 24px minmax(0, 1fr) 36px;
+}
+
 .row-tools {
     display: flex;
     justify-content: flex-end;
@@ -275,12 +300,20 @@ main {
     grid-template-columns: repeat(6, minmax(70px, 1fr));
 }
 
+.inline-fields.smb-smartphone-fields {
+    grid-template-columns: repeat(7, minmax(70px, 1fr));
+}
+
 .inline-fields.perk-fields {
     grid-template-columns: minmax(220px, 2fr) repeat(2, minmax(90px, 1fr));
 }
 
 .inline-fields.device-fields {
     grid-template-columns: 150px 150px minmax(180px, 1fr) 110px 110px;
+}
+
+.inline-fields.line-type-fields {
+    grid-template-columns: repeat(4, minmax(130px, 1fr)) repeat(6, minmax(96px, 1fr));
 }
 
 .trash-button,
@@ -479,8 +512,10 @@ select:focus {
     .device-row,
     .inline-fields,
     .inline-fields.smartphone-fields,
+    .inline-fields.smb-smartphone-fields,
     .inline-fields.perk-fields,
     .inline-fields.device-fields,
+    .inline-fields.line-type-fields,
     .settings-grid,
     .form-grid {
         grid-template-columns: 1fr;

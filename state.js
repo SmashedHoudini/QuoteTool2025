@@ -13,11 +13,9 @@
     const createId = () => Math.random().toString(36).substr(2, 9);
 
     const getDefaultPlanName = (type, config) => {
-        if (type === 'Smartphone') return config.smartphonePlans[0].name;
-        if (type === 'Tablet') return config.tabletPlans[0].name;
-        if (type === 'Watch') return config.watchPlans[0].name;
-        if (type === 'Home Internet') return config.homeInternetPlans[0].name;
-        if (type === 'Custom') return 'Custom';
+        const typeConfig = window.QuoteTool.getLineType?.(config, type);
+        if (typeConfig?.customType) return 'Custom';
+        if (typeConfig?.planKey && config[typeConfig.planKey]?.[0]) return config[typeConfig.planKey][0].name;
         return '';
     };
 
@@ -55,7 +53,7 @@
 
     const withPlanDefaultForType = (line, updates, config) => {
         const updated = { ...line, ...updates };
-        if (updates.type && updates.type !== line.type) {
+        if (updates.type) {
             updated.planName = getDefaultPlanName(updates.type, config);
         }
         return updated;

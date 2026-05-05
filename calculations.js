@@ -10,6 +10,34 @@
     savings number, and PDF/customer view.
 */
 (function () {
+    const DEFAULT_PROFILE_KEY = 'consumer';
+    const PROFILE_KEYS = [DEFAULT_PROFILE_KEY, 'smb'];
+    const DEFAULT_LINE_TYPES = [
+        { name: 'Smartphone', planKey: 'smartphonePlans', planPricing: 'tiered', icon: 'Smartphone', hasHardware: true, protectionEligible: true, multiDeviceProtectionEligible: true, earnsConnectedDiscountSlots: true, connectedDiscountEligible: false, mobileHomeDiscountEligible: false, customType: false },
+        { name: 'Tablet', planKey: 'tabletPlans', planPricing: 'flat', icon: 'Tablet', hasHardware: true, protectionEligible: true, multiDeviceProtectionEligible: true, earnsConnectedDiscountSlots: false, connectedDiscountEligible: true, mobileHomeDiscountEligible: false, customType: false },
+        { name: 'Watch', planKey: 'watchPlans', planPricing: 'flat', icon: 'Watch', hasHardware: true, protectionEligible: true, multiDeviceProtectionEligible: true, earnsConnectedDiscountSlots: false, connectedDiscountEligible: true, mobileHomeDiscountEligible: false, customType: false },
+        { name: 'Home Internet', planKey: 'homeInternetPlans', planPricing: 'flat', icon: 'Wifi', hasHardware: false, protectionEligible: false, multiDeviceProtectionEligible: false, earnsConnectedDiscountSlots: false, connectedDiscountEligible: false, mobileHomeDiscountEligible: true, customType: false },
+        { name: 'Custom', planKey: '', planPricing: 'custom', icon: 'Smartphone', hasHardware: true, protectionEligible: true, multiDeviceProtectionEligible: true, earnsConnectedDiscountSlots: false, connectedDiscountEligible: false, mobileHomeDiscountEligible: false, customType: true }
+    ];
+
+    const clone = (value) => JSON.parse(JSON.stringify(value));
+
+    const getLineTypes = (config) => {
+        const configured = Array.isArray(config.lineTypes) && config.lineTypes.length > 0
+            ? config.lineTypes
+            : DEFAULT_LINE_TYPES;
+        return configured.map(type => {
+            const fallback = DEFAULT_LINE_TYPES.find(defaultType => defaultType.name === type.name) || {};
+            return { ...fallback, ...type };
+        });
+    };
+
+    const getLineType = (config, typeName) => (
+        getLineTypes(config).find(type => type.name === typeName)
+        || getLineTypes(config).find(type => type.name === 'Custom')
+        || DEFAULT_LINE_TYPES.at(-1)
+    );
+
     const requiredNumber = (value, label) => {
         if (typeof value !== 'number' || Number.isNaN(value)) {
             throw new Error(`pricing.json is missing a number for ${label}.`);
@@ -31,47 +59,74 @@
         return value;
     };
 
-    const validatePricingConfig = (config) => {
-        requiredArray(config.smartphonePlans, 'smartphonePlans').forEach((plan, index) => {
-            requiredArray(plan.costs, `smartphonePlans[${index}].costs`);
-            requiredNumber(plan.autopay, `smartphonePlans[${index}].autopay`);
-        });
-        requiredArray(config.tabletPlans, 'tabletPlans').forEach((plan, index) => {
-            requiredNumber(plan.price, `tabletPlans[${index}].price`);
-        });
-        requiredArray(config.watchPlans, 'watchPlans').forEach((plan, index) => {
-            requiredNumber(plan.price, `watchPlans[${index}].price`);
-        });
-        requiredArray(config.homeInternetPlans, 'homeInternetPlans').forEach((plan, index) => {
-            requiredNumber(plan.price, `homeInternetPlans[${index}].price`);
-            requiredNumber(plan.autopay, `homeInternetPlans[${index}].autopay`);
-            requiredNumber(plan.mhDiscount, `homeInternetPlans[${index}].mhDiscount`);
+    const validatePricingProfile = (config, label = 'pricing.json') => {
+        getLineTypes(config).filter(type => !type.customType).forEach(type => {
+            requiredArray(config[type.planKey], type.planKey).forEach((plan, index) => {
+                if (type.planPricing === 'tiered') {
+                    requiredArray(plan.costs, `${label}.${type.planKey}[${index}].costs`);
+                    requiredNumber(plan.autopay ?? 0, `${label}.${type.planKey}[${index}].autopay`);
+                } else {
+                    requiredNumber(plan.price, `${label}.${type.planKey}[${index}].price`);
+                    requiredNumber(plan.autopay ?? 0, `${label}.${type.planKey}[${index}].autopay`);
+                    requiredNumber(plan.mhDiscount ?? 0, `${label}.${type.planKey}[${index}].mhDiscount`);
+                }
+            });
         });
         requiredArray(config.perks, 'perks').forEach((perk, index) => {
-            requiredNumber(perk.cost, `perks[${index}].cost`);
-            requiredNumber(perk.savings, `perks[${index}].savings`);
+            requiredNumber(perk.cost, `${label}.perks[${index}].cost`);
+            requiredNumber(perk.savings, `${label}.perks[${index}].savings`);
         });
 
         const settings = requiredObject(config.quoteSettings, 'quoteSettings');
-        requiredNumber(settings.financingMonths, 'quoteSettings.financingMonths');
-        requiredNumber(settings.connectedDeviceDiscountRate, 'quoteSettings.connectedDeviceDiscountRate');
+        requiredNumber(settings.financingMonths, `${label}.quoteSettings.financingMonths`);
+        requiredNumber(settings.connectedDeviceDiscountRate, `${label}.quoteSettings.connectedDeviceDiscountRate`);
 
         const taxSettings = requiredObject(settings['taxes&surcharges'], 'quoteSettings.taxes&surcharges');
-        requiredNumber(taxSettings.Smartphone, 'quoteSettings.taxes&surcharges.Smartphone');
-        requiredNumber(taxSettings.Tablet, 'quoteSettings.taxes&surcharges.Tablet');
-        requiredNumber(taxSettings.Watch, 'quoteSettings.taxes&surcharges.Watch');
-        requiredNumber(taxSettings['Home Internet'], 'quoteSettings.taxes&surcharges.Home Internet');
-        requiredNumber(taxSettings.Custom, 'quoteSettings.taxes&surcharges.Custom');
+        getLineTypes(config).forEach(type => {
+            requiredNumber(taxSettings[type.name] ?? 0, `${label}.quoteSettings.taxes&surcharges.${type.name}`);
+        });
 
         const individualProtection = requiredObject(settings.individualProtection, 'quoteSettings.individualProtection');
-        requiredNumber(individualProtection.Smartphone, 'quoteSettings.individualProtection.Smartphone');
-        requiredNumber(individualProtection.Watch, 'quoteSettings.individualProtection.Watch');
-        requiredNumber(individualProtection.Tablet, 'quoteSettings.individualProtection.Tablet');
+        getLineTypes(config).filter(type => type.protectionEligible && !type.customType).forEach(type => {
+            requiredNumber(individualProtection[type.name] ?? 0, `${label}.quoteSettings.individualProtection.${type.name}`);
+        });
 
         const multiProtection = requiredObject(settings.multiDeviceProtection, 'quoteSettings.multiDeviceProtection');
-        requiredNumber(multiProtection.perLine, 'quoteSettings.multiDeviceProtection.perLine');
-        requiredNumber(multiProtection.monthlyCap, 'quoteSettings.multiDeviceProtection.monthlyCap');
+        requiredNumber(multiProtection.perLine, `${label}.quoteSettings.multiDeviceProtection.perLine`);
+        requiredNumber(multiProtection.monthlyCap, `${label}.quoteSettings.multiDeviceProtection.monthlyCap`);
 
+        return config;
+    };
+
+    const getPricingProfile = (config, profileKey = DEFAULT_PROFILE_KEY) => {
+        if (profileKey === DEFAULT_PROFILE_KEY) {
+            return {
+                ...config,
+                lineTypes: getLineTypes(config),
+                key: DEFAULT_PROFILE_KEY,
+                label: 'Consumer',
+                addOnLabel: config.addOnLabel || 'Perks'
+            };
+        }
+
+        const profile = config.profiles?.[profileKey];
+        if (!profile) return getPricingProfile(config, DEFAULT_PROFILE_KEY);
+
+        return {
+            ...profile,
+            devices: profile.devices || config.devices || [],
+            lineTypes: getLineTypes(profile),
+            key: profileKey,
+            label: profile.label || profileKey.toUpperCase(),
+            addOnLabel: profile.addOnLabel || 'Add-ons'
+        };
+    };
+
+    const validatePricingConfig = (config) => {
+        validatePricingProfile(getPricingProfile(config, DEFAULT_PROFILE_KEY), 'pricing.json.consumer');
+        PROFILE_KEYS
+            .filter(key => key !== DEFAULT_PROFILE_KEY && config.profiles?.[key])
+            .forEach(key => validatePricingProfile(getPricingProfile(config, key), `pricing.json.profiles.${key}`));
         return config;
     };
 
@@ -90,17 +145,14 @@
         return acc + (adjustment.type === 'credit' ? -amount : amount);
     }, 0);
 
-    const getTaxSurchargeForLine = (line, taxSettings) => {
-        if (line.type === 'Custom') return parseAmount(line.customTaxSurcharge ?? taxSettings.Custom);
+    const getTaxSurchargeForLine = (line, taxSettings, config) => {
+        if (getLineType(config, line.type).customType) return parseAmount(line.customTaxSurcharge ?? taxSettings.Custom);
         return parseAmount(taxSettings[line.type]);
     };
 
     const calculateQuote = ({ lines, multiDeviceProtection, accountAdjustments, oneTimeCredits, includeEstimatedTaxes }, config) => {
-        const SMARTPHONE_PLANS = config.smartphonePlans;
-        const TABLET_PLANS = config.tabletPlans;
-        const WATCH_PLANS = config.watchPlans;
-        const HOME_INTERNET_PLANS = config.homeInternetPlans;
         const PERKS = config.perks;
+        const lineTypes = getLineTypes(config);
         const settings = config.quoteSettings;
         const financingMonths = settings.financingMonths;
         const connectedDeviceDiscountRate = settings.connectedDeviceDiscountRate;
@@ -110,17 +162,19 @@
 
         // Phone count drives Verizon's smartphone pricing tier. Four or more
         // lines use the last price in each plan's costs array.
-        const spLines = lines.filter(line => line.type === 'Smartphone');
+        const spLines = lines.filter(line => getLineType(config, line.type).planPricing === 'tiered');
         const pricingTier = Math.max(spLines.length - 1, 0);
         let totalSlots = 0;
 
         // Some phone plans unlock half-off connected devices. We collect the
         // available slots first, then spend them on tablets/watches below.
         spLines.forEach(line => {
+            const typeConfig = getLineType(config, line.type);
+            if (!typeConfig.earnsConnectedDiscountSlots) return;
             if (line.planName === 'Custom') {
                 totalSlots += (parseInt(line.customDiscountSlots) || 0);
             } else {
-                const plan = findByName(SMARTPHONE_PLANS, line.planName, 'smartphonePlans');
+                const plan = findByName(config[typeConfig.planKey], line.planName, typeConfig.planKey);
                 if (plan?.discountSlots) totalSlots += plan.discountSlots;
             }
         });
@@ -133,28 +187,24 @@
             let mhSaving = 0;
             let displayName = line.planName;
             let typeName = line.type;
+            const typeConfig = getLineType(config, line.type);
+            const plans = config[typeConfig.planKey] || [];
 
-            if (line.type === 'Custom') typeName = line.customLineTypeLabel || 'Custom Device';
+            if (typeConfig.customType) typeName = line.customLineTypeLabel || 'Custom Device';
 
             if (line.planName === 'Custom') {
                 planBase = parseAmount(line.customPlanPrice);
                 autopaySaving = parseAmount(line.customAutopayDiscount);
                 displayName = line.customPlanName || 'Custom Plan';
-            } else if (line.type === 'Smartphone') {
-                const plan = findByName(SMARTPHONE_PLANS, line.planName, 'smartphonePlans');
+            } else if (typeConfig.planPricing === 'tiered') {
+                const plan = findByName(plans, line.planName, typeConfig.planKey);
                 planBase = plan.costs[Math.min(pricingTier, plan.costs.length - 1)];
-                autopaySaving = plan.autopay;
-            } else if (line.type === 'Home Internet') {
-                const plan = findByName(HOME_INTERNET_PLANS, line.planName, 'homeInternetPlans');
+                autopaySaving = plan.autopay || 0;
+            } else if (!typeConfig.customType) {
+                const plan = findByName(plans, line.planName, typeConfig.planKey);
                 planBase = plan.price;
-                autopaySaving = plan.autopay;
-                if (spLines.length > 0) mhSaving = plan.mhDiscount;
-            } else if (line.type === 'Tablet') {
-                const plan = findByName(TABLET_PLANS, line.planName, 'tabletPlans');
-                planBase = plan.price;
-            } else if (line.type === 'Watch') {
-                const plan = findByName(WATCH_PLANS, line.planName, 'watchPlans');
-                planBase = plan.price;
+                autopaySaving = plan.autopay || 0;
+                if (typeConfig.mobileHomeDiscountEligible && spLines.length > 0) mhSaving = plan.mhDiscount || 0;
             }
 
             const perkCost = line.perks.reduce((acc, name) => acc + findByName(PERKS, name, 'perks').cost, 0);
@@ -162,17 +212,17 @@
             const adjSum = sumAdjustments(line.adjustments);
 
             let protCost = 0;
-            if (!multiDeviceProtection && line.type !== 'Home Internet') {
-                if (line.type === 'Custom') {
+            if (!multiDeviceProtection && typeConfig.protectionEligible) {
+                if (typeConfig.customType) {
                     protCost = parseAmount(line.customProtectionCost);
                 } else if (line.individualProtection) {
-                    protCost = individualProtection[line.type];
+                    protCost = individualProtection[line.type] || 0;
                 }
             }
 
             const deviceMonthly = (parseAmount(line.devicePrice) / financingMonths) - (parseAmount(line.promoCredit) / financingMonths);
             const monthlyPromoCredit = parseAmount(line.promoCredit) / financingMonths;
-            const taxSurcharge = getTaxSurchargeForLine(line, taxSettings);
+            const taxSurcharge = getTaxSurchargeForLine(line, taxSettings, config);
 
             return {
                 ...line,
@@ -198,7 +248,7 @@
         const finalLines = baseProcessed.map(line => {
             let discountedAmt = 0;
             let isDiscounted = false;
-            if ((line.type === 'Tablet' || line.type === 'Watch') && slotsRemaining > 0) {
+            if (getLineType(config, line.type).connectedDiscountEligible && slotsRemaining > 0) {
                 slotsRemaining--;
                 discountedAmt = line.planBase * connectedDeviceDiscountRate;
                 isDiscounted = true;
@@ -215,7 +265,8 @@
         // Account totals are intentionally calculated at the end so the UI can
         // display both per-line numbers and whole-account savings from one result.
         const protectableLinesCount = lines.filter(line => (
-            line.type !== 'Home Internet' && (line.type !== 'Custom' || line.customIncludeInVmdp)
+            getLineType(config, line.type).multiDeviceProtectionEligible
+            && (!getLineType(config, line.type).customType || line.customIncludeInVmdp)
         )).length;
         const vmpCost = multiDeviceProtection ? Math.min(protectableLinesCount * multiProtection.perLine, multiProtection.monthlyCap) : 0;
         const accAdjSum = sumAdjustments(accountAdjustments);
@@ -269,6 +320,12 @@
     window.QuoteTool = {
         ...(window.QuoteTool || {}),
         calculateQuote,
-        loadPricingConfig
+        loadPricingConfig,
+        getPricingProfile,
+        getLineTypes,
+        getLineType,
+        DEFAULT_LINE_TYPES: clone(DEFAULT_LINE_TYPES),
+        DEFAULT_PROFILE_KEY,
+        PROFILE_KEYS
     };
 })();

@@ -7,24 +7,29 @@
     without rewriting the form rendering below.
 */
 (function () {
-    const PLAN_SECTIONS = {
-        smartphonePlans: 'Smartphone',
-        tabletPlans: 'Tablet',
-        watchPlans: 'Watch',
-        homeInternetPlans: 'Home Internet'
-    };
+    const DEFAULT_LINE_TYPES = [
+        { name: 'Smartphone', planKey: 'smartphonePlans', planPricing: 'tiered', icon: 'Smartphone', hasHardware: true, protectionEligible: true, multiDeviceProtectionEligible: true, earnsConnectedDiscountSlots: true, connectedDiscountEligible: false, mobileHomeDiscountEligible: false, customType: false },
+        { name: 'Tablet', planKey: 'tabletPlans', planPricing: 'flat', icon: 'Tablet', hasHardware: true, protectionEligible: true, multiDeviceProtectionEligible: true, earnsConnectedDiscountSlots: false, connectedDiscountEligible: true, mobileHomeDiscountEligible: false, customType: false },
+        { name: 'Watch', planKey: 'watchPlans', planPricing: 'flat', icon: 'Watch', hasHardware: true, protectionEligible: true, multiDeviceProtectionEligible: true, earnsConnectedDiscountSlots: false, connectedDiscountEligible: true, mobileHomeDiscountEligible: false, customType: false },
+        { name: 'Home Internet', planKey: 'homeInternetPlans', planPricing: 'flat', icon: 'Wifi', hasHardware: false, protectionEligible: false, multiDeviceProtectionEligible: false, earnsConnectedDiscountSlots: false, connectedDiscountEligible: false, mobileHomeDiscountEligible: true, customType: false },
+        { name: 'Custom', planKey: '', planPricing: 'custom', icon: 'Smartphone', hasHardware: true, protectionEligible: true, multiDeviceProtectionEligible: true, earnsConnectedDiscountSlots: false, connectedDiscountEligible: false, mobileHomeDiscountEligible: false, customType: true }
+    ];
 
-    const DEVICE_TYPES = ['Smartphone', 'Tablet', 'Watch', 'Home Internet', 'Custom'];
+    const PLAN_PRICING_OPTIONS = ['flat', 'tiered'];
+    const ICON_OPTIONS = ['Smartphone', 'Tablet', 'Watch', 'Wifi', 'Phone', 'BriefcaseBusiness', 'MonitorSmartphone', 'Headphones', 'Router'];
     const EMPTY_PLANS = {
         smartphonePlans: { name: 'New Smartphone Plan', costs: [0, 0, 0, 0], autopay: 0, discountSlots: 0 },
         tabletPlans: { name: 'New Tablet Plan', price: 0 },
         watchPlans: { name: 'New Watch Plan', price: 0 },
-        homeInternetPlans: { name: 'New Home Internet Plan', price: 0, mhDiscount: 0, autopay: 0 }
+        homeInternetPlans: { name: 'New Home Internet Plan', price: 0, mhDiscount: 0, autopay: 0 },
+        flat: { name: 'New Plan', price: 0, autopay: 0, mhDiscount: 0 },
+        tiered: { name: 'New Plan', costs: [0, 0, 0, 0], autopay: 0, discountSlots: 0 }
     };
     const EMPTY_PERK = { name: 'New Perk', cost: 0, savings: 0 };
     const EMPTY_DEVICE = { id: '', enabled: true, type: 'Smartphone', manufacturer: '', model: '', storage: '', price: 0 };
 
     let config = null;
+    let activeProfileKey = 'consumer';
     let activeTab = 'plans';
     let planSection = 'smartphonePlans';
     let deviceTypeFilter = 'All';
@@ -50,7 +55,10 @@
         const response = await fetch('/api/pricing', { cache: 'no-store' });
         if (!response.ok) throw new Error(`Unable to load pricing.json (${response.status})`);
         const data = await response.json();
-        config = { devices: [], ...data };
+        config = { devices: [], profiles: {}, ...data };
+        config.profiles.smb = config.profiles.smb || createEmptySmbProfile();
+        ensureLineTypeConfig(config);
+        Object.values(config.profiles || {}).forEach(profile => ensureLineTypeConfig(profile));
         setStatus('Loaded pricing.json');
         render();
     };
@@ -72,6 +80,142 @@
     };
 
     const markDirty = () => setStatus('Unsaved changes');
+
+    const slugPlanKey = (name) => `${String(name || 'new-line-type')
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+(.)/g, (_, chr) => chr.toUpperCase())
+        .replace(/[^a-zA-Z0-9]/g, '')}Plans`;
+
+    const uniquePlanKey = (target, baseKey, currentIndex, oldPlanKey = '') => {
+        const cleanBase = baseKey && baseKey !== 'Plans' ? baseKey : 'lineTypePlans';
+        let key = cleanBase;
+        let suffix = 2;
+        while (
+            key !== oldPlanKey
+            && (
+                target[key]
+                || (target.lineTypes || []).some((type, index) => index !== currentIndex && type.planKey === key)
+            )
+        ) {
+            key = `${cleanBase.replace(/Plans$/, '')}${suffix}Plans`;
+            suffix += 1;
+        }
+        return key;
+    };
+
+    const migrateLineTypeName = (index, previousName, previousPlanKey) => {
+        const target = currentConfig();
+        const type = target.lineTypes[index];
+        if (!type || type.customType) return;
+
+        const nextPlanKey = uniquePlanKey(target, slugPlanKey(type.name), index, previousPlanKey);
+        if (previousPlanKey && previousPlanKey !== nextPlanKey) {
+            target[nextPlanKey] = target[previousPlanKey] || [clone(EMPTY_PLANS[type.planPricing] || EMPTY_PLANS.flat)];
+            delete target[previousPlanKey];
+            if (planSection === previousPlanKey) planSection = nextPlanKey;
+        }
+        type.planKey = nextPlanKey;
+
+        if (previousName && previousName !== type.name) {
+            const taxes = target.quoteSettings['taxes&surcharges'];
+            const protection = target.quoteSettings.individualProtection;
+            taxes[type.name] = taxes[previousName] ?? taxes[type.name] ?? 0;
+            delete taxes[previousName];
+            if (protection[previousName] !== undefined || type.protectionEligible) {
+                protection[type.name] = protection[previousName] ?? protection[type.name] ?? 0;
+                delete protection[previousName];
+            }
+            (config.devices || []).forEach(device => {
+                if (device.type === previousName) device.type = type.name;
+            });
+        }
+    };
+
+    const ensureLineTypeConfig = (target = currentConfig()) => {
+        target.lineTypes = Array.isArray(target.lineTypes) && target.lineTypes.length > 0
+            ? target.lineTypes
+            : clone(DEFAULT_LINE_TYPES);
+        target.quoteSettings = target.quoteSettings || {};
+        target.quoteSettings['taxes&surcharges'] = target.quoteSettings['taxes&surcharges'] || {};
+        target.quoteSettings.individualProtection = target.quoteSettings.individualProtection || {};
+        target.lineTypes.forEach(type => {
+            if (!type.customType && !type.planKey) type.planKey = slugPlanKey(type.name);
+            if (!type.planPricing) type.planPricing = type.customType ? 'custom' : 'flat';
+            if (!type.icon) type.icon = 'Smartphone';
+            if (!type.customType && !target[type.planKey]) {
+                target[type.planKey] = [clone(EMPTY_PLANS[type.planPricing] || EMPTY_PLANS.flat)];
+            }
+            if (target.quoteSettings['taxes&surcharges'][type.name] === undefined) {
+                target.quoteSettings['taxes&surcharges'][type.name] = 0;
+            }
+            if (type.protectionEligible && !type.customType && target.quoteSettings.individualProtection[type.name] === undefined) {
+                target.quoteSettings.individualProtection[type.name] = 0;
+            }
+        });
+        return target.lineTypes;
+    };
+
+    const getLineTypes = () => ensureLineTypeConfig();
+
+    const getPlanSections = () => (
+        getLineTypes()
+            .filter(type => !type.customType)
+            .map(type => [type.planKey, type.name])
+    );
+
+    const getLineTypeForPlanSection = () => (
+        getLineTypes().find(type => type.planKey === planSection) || getLineTypes().find(type => !type.customType)
+    );
+
+    const deviceTypes = () => {
+        const names = new Set();
+        ensureLineTypeConfig(config).forEach(type => names.add(type.name));
+        Object.values(config.profiles || {}).forEach(profile => {
+            ensureLineTypeConfig(profile).forEach(type => names.add(type.name));
+        });
+        return Array.from(names);
+    };
+
+    const createEmptySmbProfile = () => ({
+        label: 'SMB',
+        addOnLabel: 'Add-ons',
+        lineTypes: [
+            ...clone(DEFAULT_LINE_TYPES),
+            { name: 'One Talk', planKey: 'oneTalkPlans', planPricing: 'flat', icon: 'Phone', hasHardware: false, protectionEligible: false, multiDeviceProtectionEligible: false, earnsConnectedDiscountSlots: false, connectedDiscountEligible: false, mobileHomeDiscountEligible: false, customType: false }
+        ],
+        smartphonePlans: [{ ...clone(EMPTY_PLANS.smartphonePlans), costs: [0, 0, 0, 0, 0] }],
+        tabletPlans: [clone(EMPTY_PLANS.tabletPlans)],
+        watchPlans: [clone(EMPTY_PLANS.watchPlans)],
+        homeInternetPlans: [clone(EMPTY_PLANS.homeInternetPlans)],
+        oneTalkPlans: [clone(EMPTY_PLANS.flat)],
+        perks: [clone(EMPTY_PERK)],
+        quoteSettings: {
+            financingMonths: 36,
+            connectedDeviceDiscountRate: 0.5,
+            'taxes&surcharges': { Smartphone: 0, Tablet: 0, Watch: 0, 'Home Internet': 0, Custom: 0 },
+            individualProtection: { Smartphone: 0, Watch: 0, Tablet: 0 },
+            multiDeviceProtection: { perLine: 0, monthlyCap: 0 }
+        }
+    });
+
+    const currentConfig = () => (
+        activeProfileKey === 'consumer' ? config : config.profiles[activeProfileKey]
+    );
+
+    const profileTitle = () => activeProfileKey === 'consumer' ? 'Consumer' : (currentConfig().label || 'SMB');
+
+    const bundleDiscountLabel = () => activeProfileKey === 'smb' ? 'Bundle Discount' : 'M+H discount';
+
+    const smartphoneCostCount = () => activeProfileKey === 'smb' ? 5 : 4;
+
+    const smartphoneCostLabels = () => (
+        Array.from({ length: smartphoneCostCount() }, (_, index) => {
+            const lineNumber = index + 1;
+            if (lineNumber === smartphoneCostCount()) return `${lineNumber}+ Lines`;
+            return `${lineNumber} Line${lineNumber === 1 ? '' : 's'}`;
+        })
+    );
 
     const showDeleteConfirm = (onConfirm) => {
         pendingDelete = onConfirm;
@@ -107,7 +251,7 @@
     };
 
     const typeRank = (type) => {
-        const index = DEVICE_TYPES.indexOf(type);
+        const index = deviceTypes().indexOf(type);
         return index === -1 ? Number.MAX_SAFE_INTEGER : index;
     };
 
@@ -139,6 +283,13 @@
     const activeCheckbox = (path, checked) => `
         <label class="active-cell">
             <span>Active</span>
+            <input type="checkbox" data-field="${path}" data-checkbox="true" ${checked === false ? '' : 'checked'}>
+        </label>
+    `;
+
+    const checkboxField = (label, path, checked) => `
+        <label class="active-cell">
+            <span>${label}</span>
             <input type="checkbox" data-field="${path}" data-checkbox="true" ${checked === false ? '' : 'checked'}>
         </label>
     `;
@@ -176,9 +327,16 @@
         </label>
     `;
 
+    const readonlyField = (label, value) => `
+        <label>
+            <span>${label}</span>
+            <input value="${escapeHtml(value)}" readonly>
+        </label>
+    `;
+
     const setByPath = (path, value) => {
         const parts = path.split('.');
-        let target = config;
+        let target = path.startsWith('devices.') ? config : currentConfig();
         parts.slice(0, -1).forEach(part => {
             target = target[part];
         });
@@ -191,35 +349,44 @@
             button.classList.toggle('active', button.dataset.tab === activeTab);
         });
 
+        const profileSwitcher = `
+            <div class="profile-switcher">
+                <span>Editing</span>
+                <button type="button" data-action="profile-section" data-profile="consumer" class="${activeProfileKey === 'consumer' ? 'primary' : ''}">Consumer</button>
+                <button type="button" data-action="profile-section" data-profile="smb" class="${activeProfileKey === 'smb' ? 'primary' : ''}">SMB</button>
+            </div>
+        `;
+
         if (activeTab === 'plans') renderPlans();
+        if (activeTab === 'line-types') renderLineTypes();
         if (activeTab === 'perks') renderPerks();
         if (activeTab === 'devices') renderDevices();
         if (activeTab === 'other') renderOther();
+        if (activeTab !== 'devices') editor.insertAdjacentHTML('afterbegin', profileSwitcher);
     };
 
     const renderPlans = () => {
-        const plans = config[planSection] || [];
+        const targetConfig = currentConfig();
+        const planSections = getPlanSections();
+        if (!planSections.some(([key]) => key === planSection)) {
+            planSection = planSections[0]?.[0] || 'smartphonePlans';
+        }
+        const activeType = getLineTypeForPlanSection();
+        const plans = targetConfig[planSection] || [];
         editor.innerHTML = `
             <div class="section-header">
                 <div>
-                    <h2>Plans</h2>
+                    <h2>${profileTitle()} Plans</h2>
                     <p>Filter by device type and edit plan values inline.</p>
                 </div>
                 <div class="filters">
-                    ${Object.entries(PLAN_SECTIONS).map(([key, label]) => `<button type="button" data-action="plan-section" data-section="${key}" class="${key === planSection ? 'primary' : ''}">${label}</button>`).join('')}
+                    ${planSections.map(([key, label]) => `<button type="button" data-action="plan-section" data-section="${key}" class="${key === planSection ? 'primary' : ''}">${label}</button>`).join('')}
                 </div>
             </div>
             <div class="list">
-                <div class="list-header plan-header ${planSection === 'smartphonePlans' ? 'smartphone-plan-header' : ''}">
-                    <span></span>
-                    <span>Plan Name</span>
-                    ${planSection === 'smartphonePlans' ? '<span>1 Line</span><span>2 Lines</span><span>3 Lines</span><span>4+ Lines</span><span>Auto Pay</span><span>Slots</span>' : '<span>Price</span>'}
-                    ${planSection === 'homeInternetPlans' ? '<span>M+H Disc.</span><span>Auto Pay</span>' : ''}
-                    <span></span>
-                </div>
                 ${plans.map((plan, index) => renderPlanRow(plan, index)).join('')}
             </div>
-            <p style="margin-top:14px"><button type="button" data-action="add-plan" class="primary">Add ${PLAN_SECTIONS[planSection]} Plan</button></p>
+            <p style="margin-top:14px"><button type="button" data-action="add-plan" class="primary">Add ${activeType?.name || 'Line'} Plan</button></p>
         `;
     };
 
@@ -230,10 +397,16 @@
                 ${textField('Plan name', `${planSection}.${index}.name`, plan.name)}
         `;
 
-        if (planSection === 'smartphonePlans') {
+        const activeType = getLineTypeForPlanSection();
+        if (activeType?.planPricing === 'tiered') {
+            const costCount = smartphoneCostCount();
+            const costs = [...(plan.costs || [])];
+            while (costs.length < costCount) costs.push(0);
+            const visibleCosts = costs.slice(0, costCount);
+            const fieldClass = activeProfileKey === 'smb' ? 'smb-smartphone-fields' : 'smartphone-fields';
             return `${base}
-                <div class="inline-fields smartphone-fields">
-                    ${(plan.costs || [0, 0, 0, 0]).map((cost, costIndex) => moneyField(`${costIndex + 1} line${costIndex === 0 ? '' : 's'}`, `${planSection}.${index}.costs.${costIndex}`, cost)).join('')}
+                <div class="inline-fields ${fieldClass}">
+                    ${visibleCosts.map((cost, costIndex) => moneyField(smartphoneCostLabels()[costIndex], `${planSection}.${index}.costs.${costIndex}`, cost)).join('')}
                     ${moneyField('Auto Pay discount', `${planSection}.${index}.autopay`, plan.autopay)}
                     ${numberField('Discount slots', `${planSection}.${index}.discountSlots`, plan.discountSlots)}
                 </div>
@@ -244,21 +417,56 @@
         return `${base}
             <div class="inline-fields">
                 ${moneyField('Price', `${planSection}.${index}.price`, plan.price)}
-                ${planSection === 'homeInternetPlans' ? moneyField('M+H discount', `${planSection}.${index}.mhDiscount`, plan.mhDiscount) : ''}
-                ${planSection === 'homeInternetPlans' ? moneyField('Auto Pay discount', `${planSection}.${index}.autopay`, plan.autopay) : ''}
+                ${moneyField('Auto Pay discount', `${planSection}.${index}.autopay`, plan.autopay)}
+                ${activeType?.mobileHomeDiscountEligible ? moneyField(bundleDiscountLabel(), `${planSection}.${index}.mhDiscount`, plan.mhDiscount) : ''}
             </div>
             <div class="row-tools">${trashButton('remove-plan', index)}</div>
         </div>`;
     };
 
-    const renderPerks = () => {
+    const renderLineTypes = () => {
+        const types = getLineTypes();
         editor.innerHTML = `
             <div class="section-header">
                 <div>
-                    <h2>Perks</h2>
-                    <p>Edit perk order, cost, and savings inline.</p>
+                    <h2>${profileTitle()} Line Types</h2>
+                    <p>Add or edit line/device types used by plans, devices, taxes, protection, and the quote builder.</p>
                 </div>
-                <button type="button" data-action="add-perk" class="primary">Add Perk</button>
+                <button type="button" data-action="add-line-type" class="primary">Add Line Type</button>
+            </div>
+            <div class="list">
+                ${types.map((type, index) => `
+                    <div class="list-row line-type-row ${type.customType ? 'disabled-row' : ''}" data-drop-type="line-type" data-index="${index}">
+                        ${dragHandle('line-type', index)}
+                        <div class="inline-fields line-type-fields">
+                            ${textField('Name', `lineTypes.${index}.name`, type.name)}
+                            ${readonlyField('Plan key', type.customType ? 'Custom' : slugPlanKey(type.name))}
+                            ${selectField('Plan pricing', `lineTypes.${index}.planPricing`, type.planPricing || 'flat', type.customType ? ['custom'] : PLAN_PRICING_OPTIONS)}
+                            ${selectField('Icon', `lineTypes.${index}.icon`, type.icon || 'Smartphone', ICON_OPTIONS)}
+                            ${checkboxField('Hardware', `lineTypes.${index}.hasHardware`, type.hasHardware)}
+                            ${checkboxField('Protection', `lineTypes.${index}.protectionEligible`, type.protectionEligible)}
+                            ${checkboxField('Multi-device', `lineTypes.${index}.multiDeviceProtectionEligible`, type.multiDeviceProtectionEligible)}
+                            ${checkboxField('Can receive slot', `lineTypes.${index}.connectedDiscountEligible`, type.connectedDiscountEligible)}
+                            ${checkboxField('Grants slots', `lineTypes.${index}.earnsConnectedDiscountSlots`, type.earnsConnectedDiscountSlots)}
+                            ${checkboxField(bundleDiscountLabel(), `lineTypes.${index}.mobileHomeDiscountEligible`, type.mobileHomeDiscountEligible)}
+                        </div>
+                        <div class="row-tools single">${type.customType ? '' : trashButton('remove-line-type', index)}</div>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    };
+
+    const renderPerks = () => {
+        const targetConfig = currentConfig();
+        const addOnLabel = targetConfig.addOnLabel || 'Perks';
+        editor.innerHTML = `
+            <div class="section-header">
+                <div>
+                    <h2>${profileTitle()} ${addOnLabel}</h2>
+                    <p>Edit order, cost, and savings inline.</p>
+                </div>
+                <button type="button" data-action="add-perk" class="primary">Add ${addOnLabel.slice(0, -1) || 'Item'}</button>
             </div>
             <div class="list">
                 <div class="list-header perk-header">
@@ -268,7 +476,7 @@
                     <span>Savings</span>
                     <span></span>
                 </div>
-                ${(config.perks || []).map((perk, index) => `
+                ${(targetConfig.perks || []).map((perk, index) => `
                     <div class="list-row perk-row reorder-row" data-drop-type="perk" data-index="${index}">
                         ${dragHandle('perk', index)}
                         <div class="inline-fields perk-fields">
@@ -299,7 +507,7 @@
                 </div>
                 <div class="filters">
                     <label class="filter-field"><span>Device Type</span><select data-action="device-type-filter">
-                        ${['All', ...DEVICE_TYPES].map(type => `<option ${type === deviceTypeFilter ? 'selected' : ''}>${escapeHtml(type)}</option>`).join('')}
+                        ${['All', ...deviceTypes()].map(type => `<option ${type === deviceTypeFilter ? 'selected' : ''}>${escapeHtml(type)}</option>`).join('')}
                     </select></label>
                     <label class="filter-field"><span>Manufacturer</span><select data-action="device-manufacturer-filter">
                         ${manufacturers.map(manufacturer => `<option ${manufacturer === deviceManufacturerFilter ? 'selected' : ''}>${escapeHtml(manufacturer)}</option>`).join('')}
@@ -327,7 +535,7 @@
         <div class="list-row device-row ${device.enabled === false ? 'disabled-row' : ''}">
             ${activeCheckbox(`devices.${index}.enabled`, device.enabled)}
             <div class="inline-fields device-fields">
-                ${selectField('Device type', `devices.${index}.type`, device.type || 'Smartphone', DEVICE_TYPES)}
+                ${selectField('Device type', `devices.${index}.type`, device.type || deviceTypes()[0] || 'Smartphone', deviceTypes())}
                 ${textField('Manufacturer', `devices.${index}.manufacturer`, device.manufacturer, 'Apple')}
                 ${textField('Model', `devices.${index}.model`, device.model, 'iPhone 17 Pro Max')}
                 ${textField('Storage', `devices.${index}.storage`, device.storage, '256GB')}
@@ -338,10 +546,20 @@
     `;
 
     const renderOther = () => {
-        const settings = config.quoteSettings;
+        const targetConfig = currentConfig();
+        ensureLineTypeConfig(targetConfig);
+        const settings = targetConfig.quoteSettings;
         const taxes = settings['taxes&surcharges'];
+        const types = getLineTypes();
         editor.innerHTML = `
             <div class="settings-grid">
+                <div class="settings-panel">
+                    <h3>${profileTitle()} Profile</h3>
+                    <div class="form-grid">
+                        ${activeProfileKey !== 'consumer' ? textField('Profile label', 'label', targetConfig.label || 'SMB') : ''}
+                        ${textField('Add-on label', 'addOnLabel', targetConfig.addOnLabel || (activeProfileKey === 'consumer' ? 'Perks' : 'Add-ons'))}
+                    </div>
+                </div>
                 <div class="settings-panel">
                     <h3>Quote Settings</h3>
                     <div class="form-grid">
@@ -352,13 +570,13 @@
                 <div class="settings-panel">
                     <h3>Taxes & Surcharges</h3>
                     <div class="form-grid">
-                        ${Object.entries(taxes).map(([key, value]) => moneyField(key, `quoteSettings.taxes&surcharges.${key}`, value)).join('')}
+                        ${types.map(type => moneyField(type.name, `quoteSettings.taxes&surcharges.${type.name}`, taxes[type.name])).join('')}
                     </div>
                 </div>
                 <div class="settings-panel">
                     <h3>Individual Protection</h3>
                     <div class="form-grid">
-                        ${Object.entries(settings.individualProtection).map(([key, value]) => moneyField(key, `quoteSettings.individualProtection.${key}`, value)).join('')}
+                        ${types.filter(type => type.protectionEligible && !type.customType).map(type => moneyField(type.name, `quoteSettings.individualProtection.${type.name}`, settings.individualProtection[type.name])).join('')}
                     </div>
                 </div>
                 <div class="settings-panel">
@@ -375,6 +593,19 @@
     editor.addEventListener('change', (event) => {
         const field = event.target.closest('[data-field]');
         if (field) {
+            const isLineTypeField = field.dataset.field.startsWith('lineTypes.');
+            let previousLineTypeName = '';
+            let previousPlanKey = '';
+            let lineTypeIndex = -1;
+            let lineTypeProperty = '';
+            if (isLineTypeField) {
+                const [, indexText, property] = field.dataset.field.split('.');
+                lineTypeIndex = parseInt(indexText, 10);
+                lineTypeProperty = property;
+                const type = currentConfig().lineTypes[lineTypeIndex];
+                previousLineTypeName = type?.name || '';
+                previousPlanKey = type?.planKey || '';
+            }
             const value = field.dataset.checkbox === 'true'
                 ? field.checked
                 : field.dataset.money === 'true' || field.dataset.number === 'true'
@@ -384,6 +615,18 @@
             if (field.dataset.field.startsWith('devices.')) {
                 const index = parseInt(field.dataset.field.split('.')[1], 10);
                 config.devices[index].id = slugDevice(config.devices[index]);
+            }
+            if (field.dataset.field.startsWith('lineTypes.')) {
+                const type = currentConfig().lineTypes[lineTypeIndex];
+                if (lineTypeProperty === 'name') {
+                    migrateLineTypeName(lineTypeIndex, previousLineTypeName, previousPlanKey);
+                }
+                if (lineTypeProperty === 'planPricing' && type.planKey && !currentConfig()[type.planKey]?.length && !type.customType) {
+                    currentConfig()[type.planKey] = [clone(EMPTY_PLANS[type.planPricing] || EMPTY_PLANS.flat)];
+                }
+                ensureLineTypeConfig();
+                render();
+                return;
             }
             if (field.dataset.money === 'true') field.value = Number(setValueForPath(field.dataset.field) || 0) === 0 ? '' : money(setValueForPath(field.dataset.field));
             return;
@@ -406,30 +649,70 @@
         const action = actionTarget.dataset.action;
         const index = parseInt(actionTarget.dataset.index, 10);
 
+        if (action === 'profile-section') {
+            activeProfileKey = actionTarget.dataset.profile;
+            render();
+        }
         if (action === 'plan-section') {
             planSection = actionTarget.dataset.section;
             render();
         }
+        if (action === 'add-line-type') {
+            const name = 'New Line Type';
+            const planKey = uniquePlanKey(currentConfig(), slugPlanKey(name), currentConfig().lineTypes.length);
+            currentConfig().lineTypes.push({
+                name,
+                planKey,
+                planPricing: 'flat',
+                icon: 'Smartphone',
+                hasHardware: true,
+                protectionEligible: false,
+                multiDeviceProtectionEligible: false,
+                earnsConnectedDiscountSlots: false,
+                connectedDiscountEligible: false,
+                mobileHomeDiscountEligible: false,
+                customType: false
+            });
+            currentConfig()[planKey] = [clone(EMPTY_PLANS.flat)];
+            ensureLineTypeConfig();
+            markDirty();
+            render();
+        }
+        if (action === 'remove-line-type') {
+            showDeleteConfirm(() => {
+                const [removed] = currentConfig().lineTypes.splice(index, 1);
+                delete currentConfig().quoteSettings['taxes&surcharges'][removed.name];
+                delete currentConfig().quoteSettings.individualProtection[removed.name];
+                if (planSection === removed.planKey) {
+                    planSection = getPlanSections()[0]?.[0] || 'smartphonePlans';
+                }
+                markDirty();
+                render();
+            });
+        }
         if (action === 'add-plan') {
-            config[planSection].push(clone(EMPTY_PLANS[planSection]));
+            const activeType = getLineTypeForPlanSection();
+            const planToAdd = clone(EMPTY_PLANS[planSection] || EMPTY_PLANS[activeType?.planPricing] || EMPTY_PLANS.flat);
+            if (activeType?.planPricing === 'tiered' && activeProfileKey === 'smb') planToAdd.costs = [0, 0, 0, 0, 0];
+            currentConfig()[planSection].push(planToAdd);
             markDirty();
             render();
         }
         if (action === 'remove-plan') {
             showDeleteConfirm(() => {
-                config[planSection].splice(index, 1);
+                currentConfig()[planSection].splice(index, 1);
                 markDirty();
                 render();
             });
         }
         if (action === 'add-perk') {
-            config.perks.push(clone(EMPTY_PERK));
+            currentConfig().perks.push(clone(EMPTY_PERK));
             markDirty();
             render();
         }
         if (action === 'remove-perk') {
             showDeleteConfirm(() => {
-                config.perks.splice(index, 1);
+                currentConfig().perks.splice(index, 1);
                 markDirty();
                 render();
             });
@@ -485,7 +768,9 @@
         const targetIndex = parseInt(row.dataset.index, 10);
         if (targetIndex === draggedItem.index) return;
 
-        const items = draggedItem.type === 'plan' ? config[planSection] : config.perks;
+        const items = draggedItem.type === 'plan'
+            ? currentConfig()[planSection]
+            : draggedItem.type === 'line-type' ? currentConfig().lineTypes : currentConfig().perks;
         const [item] = items.splice(draggedItem.index, 1);
         items.splice(targetIndex, 0, item);
         draggedItem = null;
@@ -524,7 +809,7 @@
 
     const setValueForPath = (path) => {
         const parts = path.split('.');
-        let target = config;
+        let target = path.startsWith('devices.') ? config : currentConfig();
         parts.forEach(part => {
             target = target[part];
         });
