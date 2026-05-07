@@ -127,6 +127,15 @@
       "price": 500
     },
     {
+      "id": "samsung-galaxy-tab-s10-fe",
+      "enabled": true,
+      "type": "Tablet",
+      "manufacturer": "Samsung",
+      "model": "Galaxy Tab S10 FE",
+      "storage": "",
+      "price": 599.99
+    },
+    {
       "id": "apple-apple-watch-series-11",
       "enabled": true,
       "type": "Watch",
@@ -134,6 +143,15 @@
       "model": "Apple Watch Series 11",
       "storage": "",
       "price": 500
+    },
+    {
+      "id": "samsung-galaxy-watch-8",
+      "enabled": true,
+      "type": "Watch",
+      "manufacturer": "Samsung",
+      "model": "Galaxy Watch 8",
+      "storage": "",
+      "price": 422
     },
     {
       "id": "skyus-dragon-router",
