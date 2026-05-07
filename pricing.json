@@ -528,10 +528,10 @@
     {
       "name": "Unlimited Ultimate",
       "costs": [
-        100,
-        90,
-        75,
-        65
+        105,
+        95,
+        80,
+        70
       ],
       "autopay": 10,
       "discountSlots": 2
@@ -631,8 +631,8 @@
     },
     {
       "name": "Netflix & HBO Max",
-      "cost": 10,
-      "savings": 8.98
+      "cost": 13,
+      "savings": 6.99
     },
     {
       "name": "100GB Hotspot",
