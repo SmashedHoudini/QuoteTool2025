@@ -91,6 +91,15 @@
       "price": 522
     },
     {
+      "id": "samsung-galaxy-s25-fe-128gb",
+      "enabled": true,
+      "type": "Smartphone",
+      "manufacturer": "Samsung",
+      "model": "Galaxy S25 FE",
+      "storage": "128GB",
+      "price": 650
+    },
+    {
       "id": "samsung-galaxy-s26-256gb",
       "enabled": true,
       "type": "Smartphone",
