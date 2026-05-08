@@ -725,12 +725,14 @@
       "Tablet": 4,
       "Watch": 5,
       "Home Internet": 0,
-      "Custom": 0
+      "Custom": 0,
+      "BYOD+": 0
     },
     "individualProtection": {
       "Smartphone": 19,
       "Watch": 19,
-      "Tablet": 16
+      "Tablet": 16,
+      "BYOD+": 0
     },
     "multiDeviceProtection": {
       "perLine": 19,
@@ -791,6 +793,19 @@
       "customType": false
     },
     {
+      "name": "BYOD+",
+      "planKey": "byodPlans",
+      "planPricing": "flat",
+      "icon": "Smartphone",
+      "hasHardware": false,
+      "protectionEligible": true,
+      "multiDeviceProtectionEligible": true,
+      "earnsConnectedDiscountSlots": false,
+      "connectedDiscountEligible": false,
+      "mobileHomeDiscountEligible": false,
+      "customType": false
+    },
+    {
       "name": "Custom",
       "planKey": "",
       "planPricing": "custom",
@@ -802,6 +817,14 @@
       "connectedDiscountEligible": false,
       "mobileHomeDiscountEligible": false,
       "customType": true
+    }
+  ],
+  "byodPlans": [
+    {
+      "name": "BYOD+",
+      "price": 5,
+      "autopay": 0,
+      "mhDiscount": 0
     }
   ]
 }
