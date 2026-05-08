@@ -726,13 +726,13 @@
       "Watch": 5,
       "Home Internet": 0,
       "Custom": 0,
-      "BYOD+": 0
+      "BYOD+": 5
     },
     "individualProtection": {
       "Smartphone": 19,
       "Watch": 19,
       "Tablet": 16,
-      "BYOD+": 0
+      "BYOD+": 19
     },
     "multiDeviceProtection": {
       "perLine": 19,
