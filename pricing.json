@@ -331,7 +331,7 @@
         "individualProtection": {
           "Smartphone": 18,
           "Watch": 18,
-          "Tablet": 16
+          "Tablet": 15
         },
         "multiDeviceProtection": {
           "perLine": 18,
