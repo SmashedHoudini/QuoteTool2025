@@ -32,13 +32,16 @@ const {
 const Icon = ({ name, size = 18, className = "" }) => {
     const iconData = lucide.icons[name] || lucide[name];
     if (!iconData) return null;
+    const iconNodes = Array.isArray(iconData?.[2]) && iconData[0] === 'svg'
+        ? iconData[2]
+        : iconData.iconNode || iconData;
     return (
         <svg
             width={size} height={size} viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
             className={className}
         >
-            {iconData.map(([tag, attrs], i) => React.createElement(tag, { ...attrs, key: i }))}
+            {iconNodes.map(([tag, attrs], i) => React.createElement(tag, { ...attrs, key: i }))}
         </svg>
     );
 };

@@ -2,8 +2,5 @@
   "scripts": {
     "admin": "node server.js",
     "start": "node server.js"
-  },
-  "dependencies": {
-    "express": "^4.18.3"
   }
 }

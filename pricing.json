@@ -532,6 +532,17 @@
   "_fileNote": "Editable pricing/config for the V2 quote tool. The app loads this file at startup on GitHub Pages. Change plan names, prices, perk costs, device presets, protection prices, financing months, tax estimates, and discount settings here; change only the math rules in calculations.js.",
   "smartphonePlans": [
     {
+      "name": "Simplicity",
+      "costs": [
+        55,
+        55,
+        55,
+        55
+      ],
+      "autopay": 10,
+      "discountSlots": 1
+    },
+    {
       "name": "Unlimited Welcome",
       "costs": [
         75,
@@ -665,6 +676,16 @@
       "name": "100GB Hotspot",
       "cost": 10,
       "savings": 30
+    },
+    {
+      "name": "Unlimited Hotspot",
+      "cost": 20,
+      "savings": 0
+    },
+    {
+      "name": "4K Video Streaming",
+      "cost": 10,
+      "savings": 0
     },
     {
       "name": "Apple One Individual",
