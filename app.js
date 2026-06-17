@@ -372,13 +372,9 @@ const App = ({ config }) => {
 
     const pasteLine = () => {
         const copiedLineIsValid = copiedLineTemplate && LINE_TYPES.some(type => type.name === copiedLineTemplate.type);
-        if (copiedLineIsValid) {
-            setLines(prev => [...prev, copyLine(copiedLineTemplate, prev.length + 1)]);
-            return;
-        }
-
-        const lastLine = lines[lines.length - 1];
-        if (lastLine) updateProfileClipboard({ lineTemplate: lastLine });
+        if (!copiedLineIsValid && lines.length === 0) return;
+        const sourceLine = copiedLineIsValid ? copiedLineTemplate : lines[lines.length - 1];
+        setLines(prev => [...prev, copyLine(sourceLine, prev.length + 1)]);
     };
 
     const copyLineToClipboard = (line) => {
@@ -625,28 +621,17 @@ const App = ({ config }) => {
 
     const copyLastAdjustment = () => {
         if (showAccountAdj) {
-            if (copiedAccountAdjustment) {
-                setAccountAdjustments(prev => [...prev, copyAdjustment(copiedAccountAdjustment)]);
-                return;
-            }
-
-            const lastAccountAdjustment = accountAdjustments[accountAdjustments.length - 1];
-            if (lastAccountAdjustment) {
-                updateProfileClipboard({ accountAdjustment: getAdjustmentTemplate(lastAccountAdjustment) });
-            }
+            setAccountAdjustments(prev => {
+                const sourceAdjustment = copiedAccountAdjustment || prev[prev.length - 1];
+                return sourceAdjustment ? [...prev, copyAdjustment(sourceAdjustment)] : prev;
+            });
             return;
         }
 
-        if (!copiedLineAdjustment) {
-            const lastLineAdjustment = getLastLineAdjustment();
-            if (lastLineAdjustment) {
-                updateProfileClipboard({ lineAdjustment: getAdjustmentTemplate(lastLineAdjustment) });
-            }
-            return;
-        }
-        if (!activeAdjLineId) return;
+        const sourceAdjustment = copiedLineAdjustment || getLastLineAdjustment();
+        if (!sourceAdjustment || !activeAdjLineId) return;
 
-        const copiedAdjustment = copyAdjustment(copiedLineAdjustment);
+        const copiedAdjustment = copyAdjustment(sourceAdjustment);
         setLastLineAdjustmentSource({ lineId: activeAdjLineId, adjustmentId: copiedAdjustment.id });
         setLines(prev => prev.map(line => (
             line.id === activeAdjLineId
@@ -668,15 +653,10 @@ const App = ({ config }) => {
     };
 
     const copyLastOneTimeItem = () => {
-        if (copiedOneTimeItem) {
-            setOneTimeCredits(prev => [...prev, copyOneTimeItem(copiedOneTimeItem)]);
-            return;
-        }
-
-        const lastOneTimeItem = oneTimeCredits[oneTimeCredits.length - 1];
-        if (lastOneTimeItem) {
-            updateProfileClipboard({ oneTimeItem: getOneTimeItemTemplate(lastOneTimeItem) });
-        }
+        setOneTimeCredits(prev => {
+            const sourceItem = copiedOneTimeItem || prev[prev.length - 1];
+            return sourceItem ? [...prev, copyOneTimeItem(sourceItem)] : prev;
+        });
     };
 
     const getPerkCost = (perkName) => (
