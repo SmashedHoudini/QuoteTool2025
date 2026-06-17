@@ -39,6 +39,7 @@
         customPlanName: '',
         customPlanPrice: 0,
         customAutopayDiscount: 0,
+        autoPayOverride: '',
         customDiscountSlots: 0,
         customTaxSurcharge: 0,
         customProtectionCost: 0,

@@ -227,6 +227,10 @@
                 if (typeConfig.mobileHomeDiscountEligible && spLines.length > 0) mhSaving = plan.mhDiscount || 0;
             }
 
+            if (line.autoPayOverride !== undefined && line.autoPayOverride !== null && String(line.autoPayOverride).trim() !== '') {
+                autopaySaving = parseAmount(line.autoPayOverride);
+            }
+
             const perkCost = line.perks.reduce((acc, name) => acc + findByName(PERKS, name, 'perks').cost, 0);
             const perkSavings = line.perks.reduce((acc, name) => acc + findByName(PERKS, name, 'perks').savings, 0);
             const adjSum = sumAdjustments(line.adjustments);

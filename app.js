@@ -81,6 +81,8 @@ const App = ({ config }) => {
     const [activeCustomTaxLineId, setActiveCustomTaxLineId] = useState(null);
     const [activeCustomProtectionLineId, setActiveCustomProtectionLineId] = useState(null);
     const [showLegacyPlans, setShowLegacyPlans] = useState(false);
+    const [showAutoPayAdjustments, setShowAutoPayAdjustments] = useState(false);
+    const [showFeedbackModal, setShowFeedbackModal] = useState(false);
     const [hardwareMode, setHardwareMode] = useState('');
     const [selectedDeviceManufacturer, setSelectedDeviceManufacturer] = useState('');
     const [selectedDeviceModel, setSelectedDeviceModel] = useState('');
@@ -113,6 +115,7 @@ const App = ({ config }) => {
                 if (state.oneTimeCredits) setOneTimeCredits(state.oneTimeCredits);
                 if (state.includeEstimatedTaxes !== undefined) setIncludeEstimatedTaxes(state.includeEstimatedTaxes);
                 if (state.showLegacyPlans !== undefined) setShowLegacyPlans(state.showLegacyPlans);
+                if (state.showAutoPayAdjustments !== undefined) setShowAutoPayAdjustments(state.showAutoPayAdjustments);
                 if (state.quoteProfileKey) setQuoteProfileKey(state.quoteProfileKey);
                 if (state.customerName) {
                     setCustomerName(state.customerName);
@@ -196,6 +199,7 @@ const App = ({ config }) => {
             oneTimeCredits,
             includeEstimatedTaxes,
             showLegacyPlans,
+            showAutoPayAdjustments,
             customerName,
             quoteProfileKey
         });
@@ -433,6 +437,7 @@ const App = ({ config }) => {
     const activeHardwareFinancingMonths = activeHardwareLine
         ? getLineFinancingMonths(activeHardwareLine, activeConfig.quoteSettings)
         : (FINANCING_OPTIONS[0] || FINANCING_MONTHS);
+    const activeAdjustmentLine = lines.find(l => l.id === activeAdjLineId);
     const activeCustomTaxLine = lines.find(l => l.id === activeCustomTaxLineId);
     const activeCustomProtectionLine = lines.find(l => l.id === activeCustomProtectionLineId);
     const catalogDevicesForLine = (activeConfig.devices || [])
@@ -445,6 +450,16 @@ const App = ({ config }) => {
         .sort((a, b) => getStorageSortValue(a.storage) - getStorageSortValue(b.storage));
     const storageOptions = [...new Set(modelDevices.map(device => device.storage).filter(Boolean))]
         .sort((a, b) => getStorageSortValue(a) - getStorageSortValue(b));
+    const getDefaultAutoPayForLine = (line) => {
+        if (!line) return 0;
+        const typeConfig = getLineType(activeConfig, line.type);
+        if (line.planName === 'Custom' || typeConfig.customType) return parseFloat(line.customAutopayDiscount) || 0;
+        const plan = typeConfig.planKey ? (activeConfig[typeConfig.planKey] || []).find(candidate => candidate.name === line.planName) : null;
+        return parseFloat(plan?.autopay) || 0;
+    };
+    const updateAutoPayOverride = (value) => {
+        updateLine(activeAdjLineId, { autoPayOverride: value });
+    };
     const handleDeviceManufacturerChange = (manufacturer) => {
         setSelectedDeviceManufacturer(manufacturer);
         setSelectedDeviceModel('');
@@ -589,6 +604,15 @@ const App = ({ config }) => {
                             </span>
                         </button>
 
+                        <button onClick={() => setShowAutoPayAdjustments(prev => !prev)} className="w-full bg-stone-50 border border-black/10 rounded-2xl p-4 flex items-center justify-between text-left hover:border-black/20 transition-colors">
+                            <div>
+                                <p className="text-sm font-black">Adjust AutoPay</p>
+                            </div>
+                            <span className={`w-11 h-6 rounded-full relative transition-colors shrink-0 ${showAutoPayAdjustments ? 'bg-verizon-red' : 'bg-gray-300'}`}>
+                                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${showAutoPayAdjustments ? 'right-1' : 'left-1'}`} />
+                            </span>
+                        </button>
+
                         {VMPCalculator && (
                             <button onClick={openVmpCalculator} className="w-full bg-stone-50 border border-black/10 rounded-2xl p-4 flex items-center justify-between text-left hover:border-black/20 transition-colors">
                                 <div>
@@ -597,6 +621,13 @@ const App = ({ config }) => {
                                 <Icon name="ChevronRight" size={18} className="text-black/40" />
                             </button>
                         )}
+
+                        <button onClick={() => { setShowFeedbackModal(true); setIsMenuOpen(false); }} className="w-full mt-auto bg-black text-white border border-black rounded-2xl p-4 flex items-center justify-between text-left hover:bg-stone-800 transition-colors">
+                            <div>
+                                <p className="text-sm font-black">Submit Feedback</p>
+                            </div>
+                            <Icon name="ChevronRight" size={18} className="text-white/50" />
+                        </button>
                     </aside>
                 </div>
             )}
@@ -683,7 +714,7 @@ const App = ({ config }) => {
                                         <div className="w-full lg:w-52 lg:shrink-0 grid grid-cols-2 lg:flex lg:flex-col gap-2 border-t lg:border-t-0 lg:border-l border-black/5 pt-5 lg:pt-0 pl-0 lg:pl-6">
                                             <span className="col-span-2 text-[11px] font-bold text-black/40 uppercase tracking-wider">Add-ons & Adjust</span>
                                             <button onClick={() => setActivePerkLineId(line.id)} className="flex items-center justify-between px-3 lg:px-5 py-3 bg-yellow-100 border border-yellow-300 rounded-lg text-xs font-bold hover:bg-yellow-200 transition-colors text-left text-black"><span className="flex items-center gap-2 min-w-0"><Icon name="Gift" size={16}/> {ADD_ON_LABEL} ({line.perks.length})</span><Icon name="ChevronRight" size={16} /></button>
-                                            <button onClick={() => setActiveAdjLineId(line.id)} className="flex items-center justify-between px-3 lg:px-5 py-3 bg-stone-100 border border-stone-300 rounded-lg text-xs font-bold hover:bg-stone-200 transition-colors text-left text-black"><span className="flex items-center gap-2 min-w-0"><Icon name="PlusCircle" size={16}/> Adjust ({line.adjustments.length})</span><Icon name="ChevronRight" size={16} /></button>
+                                            <button onClick={() => setActiveAdjLineId(line.id)} className="flex items-center justify-between px-3 lg:px-5 py-3 bg-stone-100 border border-stone-300 rounded-lg text-xs font-bold hover:bg-stone-200 transition-colors text-left text-black"><span className="flex items-center gap-2 min-w-0"><Icon name="PlusCircle" size={16}/> Adjust ({line.adjustments.length + (showAutoPayAdjustments ? 1 : 0)})</span><Icon name="ChevronRight" size={16} /></button>
                                             {includeEstimatedTaxes && isCustomLineType(line.type) && (
                                                 <button onClick={() => setActiveCustomTaxLineId(line.id)} className="col-span-2 flex items-center justify-between px-5 py-2.5 border rounded-lg text-xs font-bold transition-all bg-stone-50 text-black/60 hover:bg-stone-100"><span className="flex items-center gap-2"><Icon name="ReceiptText" size={16} /> Taxes/Sur.</span><span className="text-black/40">${parseFloat(line.customTaxSurcharge || 0).toFixed(2)}</span></button>
                                             )}
@@ -1126,7 +1157,7 @@ const App = ({ config }) => {
                                         </div>
                                         <label className="text-right">
                                             <span className="block text-[10px] font-bold opacity-50 uppercase tracking-widest mb-2">Term</span>
-                                            <select value={activeHardwareFinancingMonths} onChange={e => updateHardwareFinancingMonths(e.target.value)} className="w-28 bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest text-white outline-none focus:border-white">
+                                            <select value={activeHardwareFinancingMonths} onChange={e => updateHardwareFinancingMonths(e.target.value)} className="w-28 appearance-none cursor-pointer bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-center text-xs font-black uppercase tracking-widest text-white outline-none focus:border-white">
                                                 {FINANCING_OPTIONS.map(months => <option key={months} value={months} className="text-black">{months} Months</option>)}
                                             </select>
                                         </label>
@@ -1169,6 +1200,21 @@ const App = ({ config }) => {
                     <div className="relative w-full max-w-lg bg-white rounded-[40px] overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
                         <div className="p-10 border-b border-black/5 bg-stone-50 flex justify-between items-center"><h2 className="text-2xl font-black">{showAccountAdj ? 'Account Adjustments' : 'Line Adjustments'}</h2><button onClick={() => { setActiveAdjLineId(null); setShowAccountAdj(false); }} className="p-3 hover:bg-black/5 rounded-full"><Icon name="X" size={28}/></button></div>
                         <div className="p-10 space-y-6 max-h-[60vh] overflow-y-auto">
+                            {!showAccountAdj && showAutoPayAdjustments && activeAdjustmentLine && (
+                                <div className="flex flex-col gap-4 bg-stone-50 p-6 rounded-3xl border border-black/5 text-black">
+                                    <div className="flex gap-4 items-end text-black">
+                                        <div className="flex-grow space-y-1">
+                                            <label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Label</label>
+                                            <div className="w-full bg-white border border-black/10 px-4 py-3 rounded-xl text-sm font-bold text-black">Auto-Pay Discount</div>
+                                        </div>
+                                        <div className="w-28 space-y-1">
+                                            <label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Amount</label>
+                                            <input type="number" inputMode="decimal" value={activeAdjustmentLine.autoPayOverride ?? ''} onWheel={e => e.currentTarget.blur()} onFocus={e => e.target.select()} placeholder={getDefaultAutoPayForLine(activeAdjustmentLine).toFixed(2)} onChange={e => updateAutoPayOverride(e.target.value)} className="w-full bg-white border border-black/10 px-4 py-3 rounded-xl text-sm font-bold focus:border-black outline-none text-black placeholder:text-black/35" />
+                                        </div>
+                                        <button onClick={() => updateAutoPayOverride('')} className="p-3 text-verizon-red hover:bg-red-50 rounded-lg transition-colors" title={`Reset to default $${getDefaultAutoPayForLine(activeAdjustmentLine).toFixed(2)}`}><Icon name="Trash2" size={20}/></button>
+                                    </div>
+                                </div>
+                            )}
                             {(showAccountAdj ? accountAdjustments : lines.find(l => l.id === activeAdjLineId)?.adjustments || []).map((adj, i) => (
                                 <div key={adj.id} className="flex flex-col gap-4 bg-stone-50 p-6 rounded-3xl border border-black/5 text-black">
                                     <div className="flex gap-2 p-1 bg-black/5 rounded-xl self-start"><button onClick={() => updateAdjustment(i, { type: 'credit' })} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${adj.type === 'credit' ? 'bg-emerald-500 text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Credit</button><button onClick={() => updateAdjustment(i, { type: 'charge' })} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${adj.type === 'charge' ? 'bg-black text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Charge</button></div>
@@ -1218,6 +1264,30 @@ const App = ({ config }) => {
                             <button onClick={() => setOneTimeCredits(prev => [...prev, createOneTimeCredit()])} className="w-full py-6 border-2 border-dashed border-black/10 rounded-2xl text-black/40 hover:text-black font-bold flex items-center justify-center gap-3 transition-all text-base uppercase"><Icon name="PlusCircle" size={20}/> Add one-time item</button>
                         </div>
                         <div className="p-8 border-t border-black/5 text-black"><button onClick={() => setShowOneTimeCreditsModal(false)} className="w-full py-6 bg-black text-white rounded-2xl font-black text-xl hover:scale-[1.01] active:scale-95 transition-all shadow-md text-white">Done</button></div>
+                    </div>
+                </div>
+            )}
+
+            {showFeedbackModal && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowFeedbackModal(false)}>
+                    <div className="relative w-full max-w-3xl bg-white rounded-[32px] overflow-hidden shadow-2xl text-black" onClick={e => e.stopPropagation()}>
+                        <div className="p-6 border-b border-black/5 bg-stone-50 flex justify-between items-center">
+                            <h2 className="text-xl font-black">Submit Feedback</h2>
+                            <button onClick={() => setShowFeedbackModal(false)} className="p-2 hover:bg-black/5 rounded-full transition-colors">
+                                <Icon name="X" size={24}/>
+                            </button>
+                        </div>
+                        <iframe
+                            title="Submit Feedback"
+                            width="640"
+                            height="480"
+                            src="https://forms.office.com/r/r0CHPfhUEX?embed=true"
+                            frameBorder="0"
+                            marginWidth="0"
+                            marginHeight="0"
+                            allowFullScreen
+                            className="block w-full h-[70vh] max-h-[720px] border-0"
+                        />
                     </div>
                 </div>
             )}
