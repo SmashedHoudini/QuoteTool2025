@@ -88,10 +88,7 @@ const App = ({ config }) => {
     const [showOneTimeCreditsModal, setShowOneTimeCreditsModal] = useState(false);
     const [quoteDrafts, setQuoteDrafts] = useState({});
     const [lastLineAdjustmentSource, setLastLineAdjustmentSource] = useState(null);
-    const [copiedLineTemplate, setCopiedLineTemplate] = useState(null);
-    const [copiedLineAdjustment, setCopiedLineAdjustment] = useState(null);
-    const [copiedAccountAdjustment, setCopiedAccountAdjustment] = useState(null);
-    const [copiedOneTimeItem, setCopiedOneTimeItem] = useState(null);
+    const [profileClipboards, setProfileClipboards] = useState({});
     const [editingLabelId, setEditingLabelId] = useState(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [quotePendingDeletion, setQuotePendingDeletion] = useState(null);
@@ -116,6 +113,21 @@ const App = ({ config }) => {
 
     // Share Link States
     const [isCopied, setIsCopied] = useState(false);
+    const activeProfileClipboard = profileClipboards[quoteProfileKey] || {};
+    const copiedLineTemplate = activeProfileClipboard.lineTemplate || null;
+    const copiedLineAdjustment = activeProfileClipboard.lineAdjustment || null;
+    const copiedAccountAdjustment = activeProfileClipboard.accountAdjustment || null;
+    const copiedOneTimeItem = activeProfileClipboard.oneTimeItem || null;
+
+    const updateProfileClipboard = (updates) => {
+        setProfileClipboards(prev => ({
+            ...prev,
+            [quoteProfileKey]: {
+                ...(prev[quoteProfileKey] || {}),
+                ...updates
+            }
+        }));
+    };
 
     const createFreshQuoteDraft = (profileKey) => {
         const profileConfig = getPricingProfile(config, profileKey);
@@ -204,10 +216,6 @@ const App = ({ config }) => {
         setActiveCustomTaxLineId(null);
         setActiveCustomProtectionLineId(null);
         setLastLineAdjustmentSource(null);
-        setCopiedLineTemplate(null);
-        setCopiedLineAdjustment(null);
-        setCopiedAccountAdjustment(null);
-        setCopiedOneTimeItem(null);
         closeHardwareModal();
     };
 
@@ -364,14 +372,17 @@ const App = ({ config }) => {
 
     const pasteLine = () => {
         const copiedLineIsValid = copiedLineTemplate && LINE_TYPES.some(type => type.name === copiedLineTemplate.type);
-        if (!copiedLineIsValid && lines.length === 0) return;
-        const fallbackLine = lines[lines.length - 1];
-        const sourceLine = copiedLineIsValid ? copiedLineTemplate : fallbackLine;
-        setLines(prev => [...prev, copyLine(sourceLine, prev.length + 1)]);
+        if (copiedLineIsValid) {
+            setLines(prev => [...prev, copyLine(copiedLineTemplate, prev.length + 1)]);
+            return;
+        }
+
+        const lastLine = lines[lines.length - 1];
+        if (lastLine) updateProfileClipboard({ lineTemplate: lastLine });
     };
 
     const copyLineToClipboard = (line) => {
-        setCopiedLineTemplate(line);
+        updateProfileClipboard({ lineTemplate: line });
     };
 
     const removeLine = (id) => setLines(prev => prev.filter(l => l.id !== id));
@@ -530,17 +541,17 @@ const App = ({ config }) => {
         ...getOneTimeItemTemplate(item)
     });
 
-    const copyAdjustmentToClipboard = (adjustment) => {
-        if (showAccountAdj) {
-            setCopiedAccountAdjustment(getAdjustmentTemplate(adjustment));
+    const copyAdjustmentToClipboard = (adjustment, adjustmentLevel) => {
+        if (adjustmentLevel === 'account') {
+            updateProfileClipboard({ accountAdjustment: getAdjustmentTemplate(adjustment) });
             return;
         }
 
-        setCopiedLineAdjustment(getAdjustmentTemplate(adjustment));
+        updateProfileClipboard({ lineAdjustment: getAdjustmentTemplate(adjustment) });
     };
 
     const copyOneTimeItemToClipboard = (item) => {
-        setCopiedOneTimeItem(getOneTimeItemTemplate(item));
+        updateProfileClipboard({ oneTimeItem: getOneTimeItemTemplate(item) });
     };
 
     const getLastLineAdjustment = () => {
@@ -614,17 +625,28 @@ const App = ({ config }) => {
 
     const copyLastAdjustment = () => {
         if (showAccountAdj) {
-            setAccountAdjustments(prev => {
-                const sourceAdjustment = copiedAccountAdjustment || prev[prev.length - 1];
-                return sourceAdjustment ? [...prev, copyAdjustment(sourceAdjustment)] : prev;
-            });
+            if (copiedAccountAdjustment) {
+                setAccountAdjustments(prev => [...prev, copyAdjustment(copiedAccountAdjustment)]);
+                return;
+            }
+
+            const lastAccountAdjustment = accountAdjustments[accountAdjustments.length - 1];
+            if (lastAccountAdjustment) {
+                updateProfileClipboard({ accountAdjustment: getAdjustmentTemplate(lastAccountAdjustment) });
+            }
             return;
         }
 
-        const sourceAdjustment = copiedLineAdjustment || getLastLineAdjustment();
-        if (!sourceAdjustment || !activeAdjLineId) return;
+        if (!copiedLineAdjustment) {
+            const lastLineAdjustment = getLastLineAdjustment();
+            if (lastLineAdjustment) {
+                updateProfileClipboard({ lineAdjustment: getAdjustmentTemplate(lastLineAdjustment) });
+            }
+            return;
+        }
+        if (!activeAdjLineId) return;
 
-        const copiedAdjustment = copyAdjustment(sourceAdjustment);
+        const copiedAdjustment = copyAdjustment(copiedLineAdjustment);
         setLastLineAdjustmentSource({ lineId: activeAdjLineId, adjustmentId: copiedAdjustment.id });
         setLines(prev => prev.map(line => (
             line.id === activeAdjLineId
@@ -646,10 +668,15 @@ const App = ({ config }) => {
     };
 
     const copyLastOneTimeItem = () => {
-        setOneTimeCredits(prev => {
-            const sourceItem = copiedOneTimeItem || prev[prev.length - 1];
-            return sourceItem ? [...prev, copyOneTimeItem(sourceItem)] : prev;
-        });
+        if (copiedOneTimeItem) {
+            setOneTimeCredits(prev => [...prev, copyOneTimeItem(copiedOneTimeItem)]);
+            return;
+        }
+
+        const lastOneTimeItem = oneTimeCredits[oneTimeCredits.length - 1];
+        if (lastOneTimeItem) {
+            updateProfileClipboard({ oneTimeItem: getOneTimeItemTemplate(lastOneTimeItem) });
+        }
     };
 
     const getPerkCost = (perkName) => (
@@ -1615,7 +1642,7 @@ const App = ({ config }) => {
                                 <div key={adj.id} className="flex flex-col gap-4 bg-stone-50 p-6 rounded-3xl border border-black/5 text-black">
                                     <div className="flex items-center justify-between gap-3">
                                         <div className="flex gap-2 p-1 bg-black/5 rounded-xl self-start"><button onClick={() => updateAdjustment(i, { type: 'credit' })} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${adj.type === 'credit' ? 'bg-emerald-500 text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Credit</button><button onClick={() => updateAdjustment(i, { type: 'charge' })} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${adj.type === 'charge' ? 'bg-black text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Charge</button></div>
-                                        <button onClick={() => copyAdjustmentToClipboard(adj)} title="Copy adjustment" aria-label="Copy adjustment" className="p-2.5 bg-white border border-black/10 text-black/35 hover:text-black hover:border-black/20 rounded-xl transition-colors"><Icon name="Copy" size={17} /></button>
+                                        <button onClick={() => copyAdjustmentToClipboard(adj, showAccountAdj ? 'account' : 'line')} title="Copy adjustment" aria-label="Copy adjustment" className="p-2.5 bg-white border border-black/10 text-black/35 hover:text-black hover:border-black/20 rounded-xl transition-colors"><Icon name="Copy" size={17} /></button>
                                     </div>
                                     <div className="flex gap-4 items-end text-black"><div className="flex-grow space-y-1"><label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Label</label><input value={adj.label} onFocus={e => e.target.select()} placeholder="Adjustment Label" onChange={e => updateAdjustment(i, { label: e.target.value })} className="w-full bg-white border border-black/10 px-4 py-3 rounded-xl text-sm font-bold focus:border-black outline-none text-black" /></div><div className="w-28 space-y-1"><label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Amount</label><input type="number" inputMode="decimal" value={adj.amount} onWheel={e => e.currentTarget.blur()} onFocus={e => e.target.select()} placeholder="0.00" onChange={e => updateAdjustment(i, { amount: e.target.value })} className="w-full bg-white border border-black/10 px-4 py-3 rounded-xl text-sm font-bold focus:border-black outline-none text-black" /></div><button onClick={() => removeAdjustment(i)} className="p-3 text-verizon-red hover:bg-red-50 rounded-lg transition-colors"><Icon name="Trash2" size={20}/></button></div>
                                 </div>
