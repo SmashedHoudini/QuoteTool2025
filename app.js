@@ -94,6 +94,7 @@ const App = ({ config }) => {
     const [copiedOneTimeItem, setCopiedOneTimeItem] = useState(null);
     const [editingLabelId, setEditingLabelId] = useState(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [quotePendingDeletion, setQuotePendingDeletion] = useState(null);
     const [includeEstimatedTaxes, setIncludeEstimatedTaxes] = useState(false);
     const [activeCustomTaxLineId, setActiveCustomTaxLineId] = useState(null);
     const [activeCustomProtectionLineId, setActiveCustomProtectionLineId] = useState(null);
@@ -123,8 +124,7 @@ const App = ({ config }) => {
             lines: [createLine(defaultType, 1, profileConfig)],
             accountAdjustments: [],
             multiDeviceProtection: false,
-            oneTimeCredits: [],
-            includeEstimatedTaxes: false
+            oneTimeCredits: []
         };
     };
 
@@ -132,21 +132,21 @@ const App = ({ config }) => {
         lines,
         accountAdjustments,
         multiDeviceProtection,
-        oneTimeCredits,
-        includeEstimatedTaxes
+        oneTimeCredits
     });
 
     const normalizeQuoteDraft = (profileKey, draft) => {
         const freshDraft = createFreshQuoteDraft(profileKey);
         if (!draft || !Array.isArray(draft.lines)) return freshDraft;
+        const quoteDraft = { ...draft };
+        delete quoteDraft.includeEstimatedTaxes;
         return {
             ...freshDraft,
-            ...draft,
+            ...quoteDraft,
             lines: draft.lines,
             accountAdjustments: draft.accountAdjustments || [],
             oneTimeCredits: draft.oneTimeCredits || [],
-            multiDeviceProtection: Boolean(draft.multiDeviceProtection),
-            includeEstimatedTaxes: Boolean(draft.includeEstimatedTaxes)
+            multiDeviceProtection: Boolean(draft.multiDeviceProtection)
         };
     };
 
@@ -193,7 +193,6 @@ const App = ({ config }) => {
         setAccountAdjustments(draft.accountAdjustments || []);
         setMultiDeviceProtection(Boolean(draft.multiDeviceProtection));
         setOneTimeCredits(draft.oneTimeCredits || []);
-        setIncludeEstimatedTaxes(Boolean(draft.includeEstimatedTaxes));
     };
 
     const resetTransientQuoteState = () => {
@@ -430,6 +429,46 @@ const App = ({ config }) => {
         }));
         applyQuoteDraft(nextQuote.draft);
         resetTransientQuoteState();
+    };
+
+    const requestQuoteDeletion = (quoteId, quoteNumber) => {
+        setQuotePendingDeletion({ quoteId, quoteNumber });
+    };
+
+    const deletePendingQuote = () => {
+        if (!quotePendingDeletion) return;
+
+        const currentSet = saveDraftInQuoteSet(quoteProfileKey, createCurrentQuoteDraft());
+        if (currentSet.quotes.length <= 1) {
+            setQuotePendingDeletion(null);
+            return;
+        }
+
+        const deletedIndex = currentSet.quotes.findIndex(quote => quote.id === quotePendingDeletion.quoteId);
+        if (deletedIndex === -1) {
+            setQuotePendingDeletion(null);
+            return;
+        }
+
+        const remainingQuotes = currentSet.quotes.filter(quote => quote.id !== quotePendingDeletion.quoteId);
+        const deletedActiveQuote = currentSet.activeQuoteId === quotePendingDeletion.quoteId;
+        const nextActiveQuote = deletedActiveQuote
+            ? remainingQuotes[Math.min(deletedIndex, remainingQuotes.length - 1)]
+            : remainingQuotes.find(quote => quote.id === currentSet.activeQuoteId) || remainingQuotes[0];
+        const nextSet = {
+            activeQuoteId: nextActiveQuote.id,
+            quotes: remainingQuotes
+        };
+
+        setQuoteDrafts(prev => ({
+            ...prev,
+            [quoteProfileKey]: nextSet
+        }));
+        if (deletedActiveQuote) {
+            applyQuoteDraft(nextActiveQuote.draft);
+            resetTransientQuoteState();
+        }
+        setQuotePendingDeletion(null);
     };
     
     const updateLine = (id, updates) => {
@@ -824,7 +863,7 @@ const App = ({ config }) => {
             multiDeviceProtection: Boolean(draft?.multiDeviceProtection),
             accountAdjustments: draft?.accountAdjustments || [],
             oneTimeCredits: draft?.oneTimeCredits || [],
-            includeEstimatedTaxes: Boolean(draft?.includeEstimatedTaxes)
+            includeEstimatedTaxes
         }, draftConfig);
         return result.total || 0;
     };
@@ -901,17 +940,27 @@ const App = ({ config }) => {
                                     {activeQuoteSet.quotes.map((quote, index) => {
                                         const isActiveQuote = quote.id === activeQuoteSet.activeQuoteId;
                                         return (
-                                            <button key={quote.id} onClick={() => switchActiveQuote(quote.id)} className={`w-full rounded-xl p-3 flex items-center justify-between text-left transition-all ${isActiveQuote ? 'bg-black text-white shadow-sm' : 'bg-white border border-black/10 text-black hover:border-black/20'}`}>
-                                                <span className="text-sm font-black">Quote {index + 1}</span>
-                                                <span className={`text-xs font-black ${isActiveQuote ? 'text-white/70' : 'text-black/45'}`}>${getQuoteDraftTotal(quote.draft).toFixed(2)}</span>
-                                            </button>
+                                            <div key={quote.id} className="flex items-stretch gap-2">
+                                                <button
+                                                    onClick={() => requestQuoteDeletion(quote.id, index + 1)}
+                                                    title={`Delete Quote ${index + 1}`}
+                                                    aria-label={`Delete Quote ${index + 1}`}
+                                                    className="w-11 shrink-0 rounded-xl border border-black/10 bg-white text-black/40 flex items-center justify-center transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                                                >
+                                                    <Icon name="Trash2" size={17} />
+                                                </button>
+                                                <button onClick={() => switchActiveQuote(quote.id)} className={`min-w-0 flex-1 rounded-xl p-3 flex items-center justify-between gap-3 text-left transition-all ${isActiveQuote ? 'bg-black text-white shadow-sm' : 'bg-white border border-black/10 text-black hover:border-black/20'}`}>
+                                                    <span className="text-sm font-black">Quote {index + 1}</span>
+                                                    <span className={`text-xs font-black ${isActiveQuote ? 'text-white/70' : 'text-black/45'}`}>${getQuoteDraftTotal(quote.draft).toFixed(2)}</span>
+                                                </button>
+                                            </div>
                                         );
                                     })}
                                 </div>
                             )}
                         </div>
 
-                        <button onClick={() => setIncludeEstimatedTaxes(prev => !prev)} className="w-full bg-stone-50 border border-black/10 rounded-2xl p-4 flex items-center justify-between text-left hover:border-black/20 transition-colors">
+                        <button onClick={() => setIncludeEstimatedTaxes(prev => !prev)} aria-pressed={includeEstimatedTaxes} className="w-full bg-stone-50 border border-black/10 rounded-2xl p-4 flex items-center justify-between text-left hover:border-black/20 transition-colors">
                             <div>
                                 <p className="text-sm font-black">Est. Tax/Sur.</p>
                             </div>
@@ -1494,6 +1543,25 @@ const App = ({ config }) => {
                             )}
                         </div>
                         <div className="p-8 border-t border-black/5 text-black"><button onClick={closeHardwareModal} className="w-full py-6 bg-black text-white rounded-2xl font-black text-xl hover:scale-[1.01] active:scale-95 transition-all shadow-lg text-white">Done</button></div>
+                    </div>
+                </div>
+            )}
+
+            {quotePendingDeletion && (
+                <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setQuotePendingDeletion(null)}>
+                    <div role="alertdialog" aria-modal="true" aria-labelledby="delete-quote-title" className="w-full max-w-md overflow-hidden rounded-[28px] bg-white text-black shadow-2xl" onClick={e => e.stopPropagation()}>
+                        <div className="p-7 md:p-8">
+                            <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">
+                                <Icon name="Trash2" size={22} />
+                            </div>
+                            <h2 id="delete-quote-title" className="text-xl font-black leading-snug">
+                                Are you sure you want to delete <span className="whitespace-nowrap">Quote {quotePendingDeletion.quoteNumber}</span>?
+                            </h2>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 border-t border-black/5 bg-stone-50 p-5">
+                            <button onClick={() => setQuotePendingDeletion(null)} className="rounded-xl border border-black/10 bg-white px-4 py-3 font-black transition-colors hover:border-black/25">No</button>
+                            <button onClick={deletePendingQuote} className="rounded-xl bg-red-600 px-4 py-3 font-black text-white transition-colors hover:bg-red-700">Yes</button>
+                        </div>
                     </div>
                 </div>
             )}
