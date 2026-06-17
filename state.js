@@ -15,8 +15,19 @@
     const getDefaultPlanName = (type, config) => {
         const typeConfig = window.QuoteTool.getLineType?.(config, type);
         if (typeConfig?.customType) return 'Custom';
-        if (typeConfig?.planKey && config[typeConfig.planKey]?.[0]) return config[typeConfig.planKey][0].name;
+        if (typeConfig?.planKey && config[typeConfig.planKey]?.length) {
+            const plans = config[typeConfig.planKey];
+            return (plans.find(plan => !plan.legacy) || plans[0]).name;
+        }
         return '';
+    };
+
+    const getDefaultFinancingMonths = (config) => {
+        const settings = config?.quoteSettings || {};
+        const options = window.QuoteTool.getFinancingOptions?.(settings) || [];
+        const preferred = parseInt(settings.financingMonths, 10) || 36;
+        if (options.includes(preferred)) return preferred;
+        return options[0] || preferred;
     };
 
     const createLine = (type, lineNumber, config) => ({
@@ -35,6 +46,7 @@
         deviceName: '',
         devicePrice: 0,
         promoCredit: 0,
+        financingMonths: getDefaultFinancingMonths(config),
         perks: [],
         adjustments: [],
         individualProtection: false,

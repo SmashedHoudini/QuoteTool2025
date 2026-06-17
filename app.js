@@ -16,6 +16,8 @@ const {
     getPricingProfile,
     getLineTypes,
     getLineType,
+    getFinancingOptions,
+    getLineFinancingMonths,
     calculateQuote,
     createLine,
     copyLine,
@@ -58,6 +60,7 @@ const App = ({ config }) => {
     const BUNDLE_DISCOUNT_LABEL = quoteProfileKey === 'smb' ? 'Bundle Discount' : 'Mobile + Home Discount';
     const isBusinessQuote = quoteProfileKey === 'smb';
     const FINANCING_MONTHS = activeConfig.quoteSettings.financingMonths;
+    const FINANCING_OPTIONS = getFinancingOptions(activeConfig.quoteSettings);
     const [view, setView] = useState('rep');
     const [previousQuoteView, setPreviousQuoteView] = useState('rep');
     const [customerViewMode, setCustomerViewMode] = useState('detailed');
@@ -77,6 +80,7 @@ const App = ({ config }) => {
     const [includeEstimatedTaxes, setIncludeEstimatedTaxes] = useState(false);
     const [activeCustomTaxLineId, setActiveCustomTaxLineId] = useState(null);
     const [activeCustomProtectionLineId, setActiveCustomProtectionLineId] = useState(null);
+    const [showLegacyPlans, setShowLegacyPlans] = useState(false);
     const [hardwareMode, setHardwareMode] = useState('');
     const [selectedDeviceManufacturer, setSelectedDeviceManufacturer] = useState('');
     const [selectedDeviceModel, setSelectedDeviceModel] = useState('');
@@ -108,6 +112,7 @@ const App = ({ config }) => {
                 if (state.multiDeviceProtection !== undefined) setMultiDeviceProtection(state.multiDeviceProtection);
                 if (state.oneTimeCredits) setOneTimeCredits(state.oneTimeCredits);
                 if (state.includeEstimatedTaxes !== undefined) setIncludeEstimatedTaxes(state.includeEstimatedTaxes);
+                if (state.showLegacyPlans !== undefined) setShowLegacyPlans(state.showLegacyPlans);
                 if (state.quoteProfileKey) setQuoteProfileKey(state.quoteProfileKey);
                 if (state.customerName) {
                     setCustomerName(state.customerName);
@@ -157,10 +162,11 @@ const App = ({ config }) => {
     useEffect(() => {
         const line = lines.find(candidate => candidate.id === activeHardwareLineId);
         if (!line) return;
+        const financingMonths = getLineFinancingMonths(line, activeConfig.quoteSettings);
 
         setHardwareAmountInputs({
-            devicePrice: getHardwareAmountValue(line.devicePrice, hardwareAmountMode),
-            promoCredit: getHardwareAmountValue(line.promoCredit, hardwareAmountMode)
+            devicePrice: getHardwareAmountValue(line.devicePrice, hardwareAmountMode, financingMonths),
+            promoCredit: getHardwareAmountValue(line.promoCredit, hardwareAmountMode, financingMonths)
         });
     }, [activeHardwareLineId, hardwareAmountMode]);
 
@@ -189,6 +195,7 @@ const App = ({ config }) => {
             multiDeviceProtection,
             oneTimeCredits,
             includeEstimatedTaxes,
+            showLegacyPlans,
             customerName,
             quoteProfileKey
         });
@@ -329,11 +336,11 @@ const App = ({ config }) => {
         return value < 0 ? `-$${formatted}` : `$${formatted}`;
     };
 
-    const getHardwareAmountValue = (amount, mode = hardwareAmountMode) => {
+    const getHardwareAmountValue = (amount, mode = hardwareAmountMode, financingMonths = FINANCING_MONTHS) => {
         const totalAmount = parseFloat(amount) || 0;
         if (!totalAmount) return '';
         return mode === 'monthly'
-            ? (totalAmount / FINANCING_MONTHS).toFixed(2)
+            ? (totalAmount / financingMonths).toFixed(2)
             : String(totalAmount);
     };
 
@@ -369,9 +376,11 @@ const App = ({ config }) => {
         return getLineType(activeConfig, lineType).icon || 'Smartphone';
     };
 
-    const getPlansForLineType = (lineType) => {
+    const getPlansForLineType = (lineType, selectedPlanName = '') => {
         const typeConfig = getLineType(activeConfig, lineType);
-        return typeConfig.planKey ? (activeConfig[typeConfig.planKey] || []) : [];
+        const plans = typeConfig.planKey ? (activeConfig[typeConfig.planKey] || []) : [];
+        if (showLegacyPlans) return plans;
+        return plans.filter(plan => !plan.legacy || plan.name === selectedPlanName);
     };
 
     const isCustomLineType = (lineType) => getLineType(activeConfig, lineType).customType;
@@ -395,8 +404,8 @@ const App = ({ config }) => {
         return `$${formatted}`;
     };
     const quoteFinePrint = includeEstimatedTaxes
-        ? 'Estimate only. Activation fees not included. Promotions may change. Quote guaranteed for today. Device financing and device credits are for 36 months unless otherwise stated.'
-        : 'Estimate only. Taxes, surcharges, and activation fees not included. Promotions may change. Quote guaranteed for today. Device financing and device credits are for 36 months unless otherwise stated.';
+        ? 'Estimate only. Activation fees not included. Promotions may change. Quote guaranteed for today. Device financing and credits follow the selected device term.'
+        : 'Estimate only. Taxes, surcharges, and activation fees not included. Promotions may change. Quote guaranteed for today. Device financing and credits follow the selected device term.';
 
     const calculations = useMemo(() => calculateQuote({
         lines,
@@ -421,6 +430,9 @@ const App = ({ config }) => {
     };
 
     const activeHardwareLine = lines.find(l => l.id === activeHardwareLineId);
+    const activeHardwareFinancingMonths = activeHardwareLine
+        ? getLineFinancingMonths(activeHardwareLine, activeConfig.quoteSettings)
+        : (FINANCING_OPTIONS[0] || FINANCING_MONTHS);
     const activeCustomTaxLine = lines.find(l => l.id === activeCustomTaxLineId);
     const activeCustomProtectionLine = lines.find(l => l.id === activeCustomProtectionLineId);
     const catalogDevicesForLine = (activeConfig.devices || [])
@@ -459,7 +471,7 @@ const App = ({ config }) => {
     const updateHardwareAmount = (field, value) => {
         setHardwareAmountInputs(prev => ({ ...prev, [field]: value }));
         const amount = parseFloat(value) || 0;
-        const totalAmount = hardwareAmountMode === 'monthly' ? amount * FINANCING_MONTHS : amount;
+        const totalAmount = hardwareAmountMode === 'monthly' ? amount * activeHardwareFinancingMonths : amount;
 
         if (field === 'devicePrice' && hardwarePromoMode === 'free') {
             updateLine(activeHardwareLineId, {
@@ -482,9 +494,17 @@ const App = ({ config }) => {
             updateLine(activeHardwareLineId, { promoCredit: devicePrice });
             setHardwareAmountInputs(prev => ({
                 ...prev,
-                promoCredit: getHardwareAmountValue(devicePrice, hardwareAmountMode)
+                promoCredit: getHardwareAmountValue(devicePrice, hardwareAmountMode, activeHardwareFinancingMonths)
             }));
         }
+    };
+    const updateHardwareFinancingMonths = (months) => {
+        const financingMonths = parseInt(months, 10) || activeHardwareFinancingMonths;
+        updateLine(activeHardwareLineId, { financingMonths });
+        setHardwareAmountInputs({
+            devicePrice: getHardwareAmountValue(activeHardwareLine?.devicePrice, hardwareAmountMode, financingMonths),
+            promoCredit: getHardwareAmountValue(activeHardwareLine?.promoCredit, hardwareAmountMode, financingMonths)
+        });
     };
     const openDevicePicker = () => {
         setHardwareMode('catalog');
@@ -560,6 +580,15 @@ const App = ({ config }) => {
                             </span>
                         </button>
 
+                        <button onClick={() => setShowLegacyPlans(prev => !prev)} className="w-full bg-stone-50 border border-black/10 rounded-2xl p-4 flex items-center justify-between text-left hover:border-black/20 transition-colors">
+                            <div>
+                                <p className="text-sm font-black">Legacy Plans</p>
+                            </div>
+                            <span className={`w-11 h-6 rounded-full relative transition-colors shrink-0 ${showLegacyPlans ? 'bg-verizon-red' : 'bg-gray-300'}`}>
+                                <span className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${showLegacyPlans ? 'right-1' : 'left-1'}`} />
+                            </span>
+                        </button>
+
                         {VMPCalculator && (
                             <button onClick={openVmpCalculator} className="w-full bg-stone-50 border border-black/10 rounded-2xl p-4 flex items-center justify-between text-left hover:border-black/20 transition-colors">
                                 <div>
@@ -624,7 +653,7 @@ const App = ({ config }) => {
                                             {isCustomLineType(line.type) && <input value={line.customLineTypeLabel} onFocus={e => e.target.select()} onChange={e => updateLine(line.id, { customLineTypeLabel: e.target.value })} placeholder="Legacy Line Label" className="w-full bg-white border border-black/10 px-3 py-2 rounded-lg text-xs font-bold focus:border-black outline-none" />}
                                             {!isCustomLineType(line.type) && (
                                                 <select value={line.planName} onChange={e => updateLine(line.id, { planName: e.target.value })} className="w-full px-3 py-2 bg-stone-50 border border-black/5 rounded-lg text-sm font-bold outline-none text-black">
-                                                    {getPlansForLineType(line.type).map(p => <option key={p.name}>{p.name}</option>)}
+                                                    {getPlansForLineType(line.type, line.planName).map(p => <option key={p.name}>{p.name}</option>)}
                                                 </select>
                                             )}
                                             {(line.planName === 'Custom' || isCustomLineType(line.type)) && (
@@ -726,7 +755,7 @@ const App = ({ config }) => {
                                                                     {line.autopaySaving > 0 && <p className="text-sm text-emerald-600 font-bold">-${line.autopaySaving.toFixed(2)} Auto Pay & Paper-free Discount</p>}
                                                                     {line.mhSaving > 0 && <p className="text-sm text-emerald-600 font-bold">-${line.mhSaving.toFixed(2)} {BUNDLE_DISCOUNT_LABEL}</p>}
                                                                     {line.isDiscounted && <p className="text-sm text-emerald-600 font-bold">-${line.connectedDiscountAmt.toFixed(2)} Connected Device Discount</p>}
-                                                                    {line.devicePrice > 0 && <p className="text-sm font-medium opacity-50">{formatDollars(line.deviceMonthly)} Device Payment</p>}
+                                                                    {line.devicePrice > 0 && <p className="text-sm font-medium opacity-50">{formatDollars(line.deviceMonthly)} Device Payment ({line.financingMonths} mo)</p>}
                                                                     {line.perks.map(pName => <p key={pName} className="text-sm font-medium opacity-50">${getPerkCost(pName).toFixed(2)} {pName}</p>)}
                                                                     {line.adjustments.map(adj => <p key={adj.id} className={`text-sm tracking-tight ${adj.type === 'credit' ? 'text-emerald-600 font-bold' : 'opacity-50'}`}>{adj.type === 'credit' ? '-' : ''}${parseFloat(adj.amount || 0).toFixed(2)} {adj.label}</p>)}
                                                                     {line.protCost > 0 && <p className="text-sm font-medium opacity-50">${line.protCost}.00 Device protection</p>}
@@ -897,7 +926,7 @@ const App = ({ config }) => {
                                                                             {line.autopaySaving > 0 && <p className="text-xs text-black font-semibold opacity-80">-${line.autopaySaving.toFixed(2)} Auto Pay & Paper-free Discount</p>}
                                                                             {line.mhSaving > 0 && <p className="text-xs text-black font-semibold opacity-80">-${line.mhSaving.toFixed(2)} {BUNDLE_DISCOUNT_LABEL}</p>}
                                                                             {line.isDiscounted && <p className="text-xs text-black font-semibold opacity-80">-${line.connectedDiscountAmt.toFixed(2)} Connected Device Discount</p>}
-                                                                            {line.devicePrice > 0 && <p className="text-xs font-medium opacity-80">{formatDollars(line.deviceMonthly)} Device Payment</p>}
+                                                                            {line.devicePrice > 0 && <p className="text-xs font-medium opacity-80">{formatDollars(line.deviceMonthly)} Device Payment ({line.financingMonths} mo)</p>}
                                                                             {line.perks.map(pName => <p key={pName} className="text-xs font-medium opacity-80">${getPerkCost(pName).toFixed(2)} {pName}</p>)}
                                                                             {line.adjustments.map(adj => <p key={adj.id} className={`text-xs tracking-tight ${adj.type === 'credit' ? 'text-black font-semibold opacity-80' : 'opacity-80'}`}>{adj.type === 'credit' ? '-' : ''}${parseFloat(adj.amount || 0).toFixed(2)} {adj.label}</p>)}
                                                                             {line.protCost > 0 && <p className="text-xs font-medium opacity-80">${line.protCost}.00 Device protection</p>}
@@ -1090,7 +1119,18 @@ const App = ({ config }) => {
                                             <input type="number" inputMode="decimal" disabled={hardwarePromoMode === 'free'} onWheel={e => e.currentTarget.blur()} value={hardwareAmountInputs.promoCredit} onFocus={e => e.target.select()} onChange={e => updateHardwareAmount('promoCredit', e.target.value)} placeholder="0.00" className={`w-full px-6 py-5 bg-stone-50 border border-black/10 rounded-2xl font-bold text-lg text-verizon-red outline-none focus:border-red-500 text-black ${hardwarePromoMode === 'free' ? 'opacity-60 cursor-not-allowed' : ''}`} />
                                         </div>
                                     </div>
-                                    <div className="p-8 bg-black text-white rounded-[28px] flex justify-between items-center shadow-xl text-white"><div><p className="text-[11px] font-bold opacity-60">Net monthly</p><p className="text-4xl font-black tracking-tight">{formatDollars(((parseFloat(activeHardwareLine.devicePrice) || 0) - (parseFloat(activeHardwareLine.promoCredit) || 0))/FINANCING_MONTHS)}</p></div><div className="text-right text-xs font-bold opacity-60 uppercase tracking-widest">{FINANCING_MONTHS} Months</div></div>
+                                    <div className="p-8 bg-black text-white rounded-[28px] flex justify-between items-center gap-6 shadow-xl text-white">
+                                        <div>
+                                            <p className="text-[11px] font-bold opacity-60">Net monthly</p>
+                                            <p className="text-4xl font-black tracking-tight">{formatDollars(((parseFloat(activeHardwareLine.devicePrice) || 0) - (parseFloat(activeHardwareLine.promoCredit) || 0))/activeHardwareFinancingMonths)}</p>
+                                        </div>
+                                        <label className="text-right">
+                                            <span className="block text-[10px] font-bold opacity-50 uppercase tracking-widest mb-2">Term</span>
+                                            <select value={activeHardwareFinancingMonths} onChange={e => updateHardwareFinancingMonths(e.target.value)} className="w-28 bg-white/10 border border-white/20 rounded-xl px-3 py-2 text-xs font-black uppercase tracking-widest text-white outline-none focus:border-white">
+                                                {FINANCING_OPTIONS.map(months => <option key={months} value={months} className="text-black">{months} Months</option>)}
+                                            </select>
+                                        </label>
+                                    </div>
                                 </>
                             )}
                         </div>

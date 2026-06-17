@@ -296,12 +296,16 @@ main {
     grid-template-columns: repeat(3, minmax(96px, 1fr));
 }
 
+.inline-fields.plan-fields {
+    grid-template-columns: repeat(4, minmax(86px, 1fr));
+}
+
 .inline-fields.smartphone-fields {
-    grid-template-columns: repeat(6, minmax(70px, 1fr));
+    grid-template-columns: repeat(7, minmax(64px, 1fr));
 }
 
 .inline-fields.smb-smartphone-fields {
-    grid-template-columns: repeat(7, minmax(70px, 1fr));
+    grid-template-columns: repeat(8, minmax(60px, 1fr));
 }
 
 .inline-fields.perk-fields {
@@ -402,6 +406,18 @@ main {
 
 .form-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.financing-options {
+    display: grid;
+    gap: 8px;
+}
+
+.financing-option-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 8px;
+    align-items: end;
 }
 
 label {
@@ -511,6 +527,7 @@ select:focus {
     .list-header,
     .device-row,
     .inline-fields,
+    .inline-fields.plan-fields,
     .inline-fields.smartphone-fields,
     .inline-fields.smb-smartphone-fields,
     .inline-fields.perk-fields,

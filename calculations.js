@@ -59,6 +59,24 @@
         return value;
     };
 
+    const getFinancingOptions = (settings = {}) => {
+        const options = Array.isArray(settings.financingOptions)
+            ? settings.financingOptions.map(option => parseInt(option, 10)).filter(option => option > 0)
+            : [];
+        if (options.length > 0) return [...new Set(options)].sort((a, b) => a - b);
+        const fallback = parseInt(settings.financingMonths, 10) || 36;
+        return [fallback];
+    };
+
+    const getLineFinancingMonths = (line, settings = {}) => {
+        const options = getFinancingOptions(settings);
+        const selected = parseInt(line.financingMonths, 10);
+        if (options.includes(selected)) return selected;
+        const fallback = parseInt(settings.financingMonths, 10) || 36;
+        if (options.includes(fallback)) return fallback;
+        return options[0] || fallback;
+    };
+
     const validatePricingProfile = (config, label = 'pricing.json') => {
         getLineTypes(config).filter(type => !type.customType).forEach(type => {
             requiredArray(config[type.planKey], type.planKey).forEach((plan, index) => {
@@ -79,6 +97,9 @@
 
         const settings = requiredObject(config.quoteSettings, 'quoteSettings');
         requiredNumber(settings.financingMonths, `${label}.quoteSettings.financingMonths`);
+        getFinancingOptions(settings).forEach((option, index) => {
+            requiredNumber(option, `${label}.quoteSettings.financingOptions[${index}]`);
+        });
         requiredNumber(settings.connectedDeviceDiscountRate, `${label}.quoteSettings.connectedDeviceDiscountRate`);
 
         const taxSettings = requiredObject(settings['taxes&surcharges'], 'quoteSettings.taxes&surcharges');
@@ -154,7 +175,6 @@
         const PERKS = config.perks;
         const lineTypes = getLineTypes(config);
         const settings = config.quoteSettings;
-        const financingMonths = settings.financingMonths;
         const connectedDeviceDiscountRate = settings.connectedDeviceDiscountRate;
         const taxSettings = settings['taxes&surcharges'];
         const individualProtection = settings.individualProtection;
@@ -220,6 +240,7 @@
                 }
             }
 
+            const financingMonths = getLineFinancingMonths(line, settings);
             const deviceMonthly = (parseAmount(line.devicePrice) / financingMonths) - (parseAmount(line.promoCredit) / financingMonths);
             const monthlyPromoCredit = parseAmount(line.promoCredit) / financingMonths;
             const taxSurcharge = getTaxSurchargeForLine(line, taxSettings, config);
@@ -235,6 +256,7 @@
                 perkSavings,
                 protCost,
                 deviceMonthly,
+                financingMonths,
                 adjSum,
                 taxSurcharge,
                 monthlyPromoCredit,
@@ -324,6 +346,8 @@
         getPricingProfile,
         getLineTypes,
         getLineType,
+        getFinancingOptions,
+        getLineFinancingMonths,
         DEFAULT_LINE_TYPES: clone(DEFAULT_LINE_TYPES),
         DEFAULT_PROFILE_KEY,
         PROFILE_KEYS

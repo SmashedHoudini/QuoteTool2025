@@ -318,6 +318,12 @@
       ],
       "quoteSettings": {
         "financingMonths": 36,
+        "financingOptions": [
+          12,
+          24,
+          36,
+          48
+        ],
         "connectedDeviceDiscountRate": 0.5,
         "taxes&surcharges": {
           "Smartphone": 7,
@@ -532,7 +538,7 @@
   "_fileNote": "Editable pricing/config for the V2 quote tool. The app loads this file at startup on GitHub Pages. Change plan names, prices, perk costs, device presets, protection prices, financing months, tax estimates, and discount settings here; change only the math rules in calculations.js.",
   "smartphonePlans": [
     {
-      "name": "Simplicity",
+      "name": "Simplicity Plan",
       "costs": [
         55,
         55,
@@ -562,6 +568,18 @@
       ],
       "autopay": 10,
       "discountSlots": 1
+    },
+    {
+      "name": "Unlimited Ultimate 1.0",
+      "costs": [
+        100,
+        90,
+        75,
+        65
+      ],
+      "autopay": 10,
+      "discountSlots": 2,
+      "legacy": true
     },
     {
       "name": "Unlimited Ultimate",
@@ -740,6 +758,12 @@
   ],
   "quoteSettings": {
     "financingMonths": 36,
+    "financingOptions": [
+      12,
+      24,
+      36,
+      48
+    ],
     "connectedDeviceDiscountRate": 0.5,
     "taxes&surcharges": {
       "Smartphone": 7,

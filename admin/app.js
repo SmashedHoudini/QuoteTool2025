@@ -18,12 +18,12 @@
     const PLAN_PRICING_OPTIONS = ['flat', 'tiered'];
     const ICON_OPTIONS = ['Smartphone', 'Tablet', 'Watch', 'Wifi', 'Phone', 'BriefcaseBusiness', 'MonitorSmartphone', 'Headphones', 'Router', 'Truck'];
     const EMPTY_PLANS = {
-        smartphonePlans: { name: 'New Smartphone Plan', costs: [0, 0, 0, 0], autopay: 0, discountSlots: 0 },
-        tabletPlans: { name: 'New Tablet Plan', price: 0 },
-        watchPlans: { name: 'New Watch Plan', price: 0 },
-        homeInternetPlans: { name: 'New Home Internet Plan', price: 0, mhDiscount: 0, autopay: 0 },
-        flat: { name: 'New Plan', price: 0, autopay: 0, mhDiscount: 0 },
-        tiered: { name: 'New Plan', costs: [0, 0, 0, 0], autopay: 0, discountSlots: 0 }
+        smartphonePlans: { name: 'New Smartphone Plan', costs: [0, 0, 0, 0], autopay: 0, discountSlots: 0, legacy: false },
+        tabletPlans: { name: 'New Tablet Plan', price: 0, legacy: false },
+        watchPlans: { name: 'New Watch Plan', price: 0, legacy: false },
+        homeInternetPlans: { name: 'New Home Internet Plan', price: 0, mhDiscount: 0, autopay: 0, legacy: false },
+        flat: { name: 'New Plan', price: 0, autopay: 0, mhDiscount: 0, legacy: false },
+        tiered: { name: 'New Plan', costs: [0, 0, 0, 0], autopay: 0, discountSlots: 0, legacy: false }
     };
     const EMPTY_PERK = { name: 'New Perk', cost: 0, savings: 0 };
     const EMPTY_DEVICE = { id: '', enabled: true, type: 'Smartphone', manufacturer: '', model: '', storage: '', price: 0 };
@@ -192,6 +192,7 @@
         perks: [clone(EMPTY_PERK)],
         quoteSettings: {
             financingMonths: 36,
+            financingOptions: [12, 24, 36, 48],
             connectedDeviceDiscountRate: 0.5,
             'taxes&surcharges': { Smartphone: 0, Tablet: 0, Watch: 0, 'Home Internet': 0, Custom: 0 },
             individualProtection: { Smartphone: 0, Watch: 0, Tablet: 0 },
@@ -262,6 +263,21 @@
         || (storageRank(a.storage) - storageRank(b.storage))
     ));
 
+    const ensureFinancingOptions = (target = currentConfig()) => {
+        target.quoteSettings = target.quoteSettings || {};
+        const fallback = parseInt(target.quoteSettings.financingMonths, 10) || 36;
+        const options = Array.isArray(target.quoteSettings.financingOptions)
+            ? target.quoteSettings.financingOptions.map(option => parseInt(option, 10)).filter(option => option > 0)
+            : [];
+        target.quoteSettings.financingOptions = [...new Set(options.length ? options : [12, 24, 36, 48])].sort((a, b) => a - b);
+        if (!target.quoteSettings.financingOptions.includes(fallback)) {
+            target.quoteSettings.financingMonths = target.quoteSettings.financingOptions.includes(36)
+                ? 36
+                : target.quoteSettings.financingOptions[0];
+        }
+        return target.quoteSettings.financingOptions;
+    };
+
     const trashButton = (action, index) => `
         <button type="button" class="trash-button" data-action="${action}" data-index="${index}" aria-label="Remove">
             <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -291,6 +307,13 @@
         <label class="active-cell">
             <span>${label}</span>
             <input type="checkbox" data-field="${path}" data-checkbox="true" ${checked === false ? '' : 'checked'}>
+        </label>
+    `;
+
+    const legacyCheckbox = (path, checked) => `
+        <label class="active-cell">
+            <span>Legacy</span>
+            <input type="checkbox" data-field="${path}" data-checkbox="true" ${checked === true ? 'checked' : ''}>
         </label>
     `;
 
@@ -377,7 +400,7 @@
             <div class="section-header">
                 <div>
                     <h2>${profileTitle()} Plans</h2>
-                    <p>Filter by device type and edit plan values inline.</p>
+                    <p>Filter by device type, edit plan values, and mark older plans as legacy.</p>
                 </div>
                 <div class="filters">
                     ${planSections.map(([key, label]) => `<button type="button" data-action="plan-section" data-section="${key}" class="${key === planSection ? 'primary' : ''}">${label}</button>`).join('')}
@@ -409,16 +432,18 @@
                     ${visibleCosts.map((cost, costIndex) => moneyField(smartphoneCostLabels()[costIndex], `${planSection}.${index}.costs.${costIndex}`, cost)).join('')}
                     ${moneyField('Auto Pay discount', `${planSection}.${index}.autopay`, plan.autopay)}
                     ${numberField('Discount slots', `${planSection}.${index}.discountSlots`, plan.discountSlots)}
+                    ${legacyCheckbox(`${planSection}.${index}.legacy`, plan.legacy)}
                 </div>
                 <div class="row-tools">${trashButton('remove-plan', index)}</div>
             </div>`;
         }
 
         return `${base}
-            <div class="inline-fields">
+            <div class="inline-fields plan-fields">
                 ${moneyField('Price', `${planSection}.${index}.price`, plan.price)}
                 ${moneyField('Auto Pay discount', `${planSection}.${index}.autopay`, plan.autopay)}
                 ${activeType?.mobileHomeDiscountEligible ? moneyField(bundleDiscountLabel(), `${planSection}.${index}.mhDiscount`, plan.mhDiscount) : ''}
+                ${legacyCheckbox(`${planSection}.${index}.legacy`, plan.legacy)}
             </div>
             <div class="row-tools">${trashButton('remove-plan', index)}</div>
         </div>`;
@@ -548,6 +573,7 @@
     const renderOther = () => {
         const targetConfig = currentConfig();
         ensureLineTypeConfig(targetConfig);
+        const financingOptions = ensureFinancingOptions(targetConfig);
         const settings = targetConfig.quoteSettings;
         const taxes = settings['taxes&surcharges'];
         const types = getLineTypes();
@@ -563,9 +589,21 @@
                 <div class="settings-panel">
                     <h3>Quote Settings</h3>
                     <div class="form-grid">
-                        ${numberField('Financing months', 'quoteSettings.financingMonths', settings.financingMonths)}
+                        ${selectField('Default financing term', 'quoteSettings.financingMonths', String(settings.financingMonths), financingOptions.map(String))}
                         ${numberField('Connected discount rate', 'quoteSettings.connectedDeviceDiscountRate', settings.connectedDeviceDiscountRate)}
                     </div>
+                </div>
+                <div class="settings-panel">
+                    <h3>Device Financing Options</h3>
+                    <div class="financing-options">
+                        ${financingOptions.map((months, index) => `
+                            <div class="financing-option-row">
+                                ${numberField('Months', `quoteSettings.financingOptions.${index}`, months)}
+                                <button type="button" data-action="remove-financing-option" data-index="${index}" ${financingOptions.length <= 1 ? 'disabled' : ''}>Remove</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                    <p style="margin-top:10px"><button type="button" data-action="add-financing-option" class="primary">Add Financing Option</button></p>
                 </div>
                 <div class="settings-panel">
                     <h3>Taxes & Surcharges</h3>
@@ -608,7 +646,7 @@
             }
             const value = field.dataset.checkbox === 'true'
                 ? field.checked
-                : field.dataset.money === 'true' || field.dataset.number === 'true'
+                : field.dataset.money === 'true' || field.dataset.number === 'true' || field.dataset.field === 'quoteSettings.financingMonths'
                 ? numberValue(field.value)
                 : field.value;
             setByPath(field.dataset.field, value);
@@ -629,6 +667,10 @@
                 return;
             }
             if (field.dataset.money === 'true') field.value = Number(setValueForPath(field.dataset.field) || 0) === 0 ? '' : money(setValueForPath(field.dataset.field));
+            if (field.dataset.field.startsWith('quoteSettings.financingOptions.')) {
+                ensureFinancingOptions();
+                render();
+            }
             return;
         }
 
@@ -734,6 +776,22 @@
                 markDirty();
                 render();
             });
+        }
+        if (action === 'add-financing-option') {
+            const options = ensureFinancingOptions();
+            const nextOption = Math.max(...options) + 12;
+            currentConfig().quoteSettings.financingOptions.push(nextOption);
+            ensureFinancingOptions();
+            markDirty();
+            render();
+        }
+        if (action === 'remove-financing-option') {
+            const options = ensureFinancingOptions();
+            if (options.length <= 1) return;
+            currentConfig().quoteSettings.financingOptions.splice(index, 1);
+            ensureFinancingOptions();
+            markDirty();
+            render();
         }
     });
 
