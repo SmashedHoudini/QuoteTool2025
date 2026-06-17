@@ -50,6 +50,15 @@ const Icon = ({ name, size = 18, className = "" }) => {
 
 const VMP_CALCULATOR_TOOL = window.QuoteTool.tools?.vmpCalculator;
 const VMPCalculator = VMP_CALCULATOR_TOOL?.enabled ? VMP_CALCULATOR_TOOL.Component : null;
+const DEFAULT_FINE_PRINT = {
+    withEstimatedTaxes: 'Estimate only. Activation fees not included. Promotions may change. Quote guaranteed for today. Device financing and credits follow the selected device term.',
+    withoutEstimatedTaxes: 'Estimate only. Taxes, surcharges, and activation fees not included. Promotions may change. Quote guaranteed for today. Device financing and credits follow the selected device term.'
+};
+
+const getQuoteFinePrint = (settings, includeEstimatedTaxes) => {
+    const key = includeEstimatedTaxes ? 'withEstimatedTaxes' : 'withoutEstimatedTaxes';
+    return settings?.finePrint?.[key] ?? DEFAULT_FINE_PRINT[key];
+};
 
 const App = ({ config }) => {
     const [quoteProfileKey, setQuoteProfileKey] = useState(window.QuoteTool.DEFAULT_PROFILE_KEY || 'consumer');
@@ -407,9 +416,7 @@ const App = ({ config }) => {
         if (amount < 0) return `-$${formatted}`;
         return `$${formatted}`;
     };
-    const quoteFinePrint = includeEstimatedTaxes
-        ? 'Estimate only. Activation fees not included. Promotions may change. Quote guaranteed for today. Device financing and credits follow the selected device term.'
-        : 'Estimate only. Taxes, surcharges, and activation fees not included. Promotions may change. Quote guaranteed for today. Device financing and credits follow the selected device term.';
+    const quoteFinePrint = getQuoteFinePrint(activeConfig.quoteSettings, includeEstimatedTaxes);
 
     const calculations = useMemo(() => calculateQuote({
         lines,
@@ -877,7 +884,7 @@ const App = ({ config }) => {
                                 </div>
                             </div>
                             
-                            <div className="p-8 bg-stone-50 border-t border-black/5 flex items-start gap-2"><span className="text-[10px] font-medium opacity-40 shrink-0 mt-0.5">*</span><p className="text-[10px] font-medium leading-relaxed opacity-40 italic">{quoteFinePrint}</p></div>
+                            <div className="p-8 bg-stone-50 border-t border-black/5 flex items-start gap-2"><span className="text-[10px] font-medium opacity-40 shrink-0 mt-0.5">*</span><p className="text-[8px] font-medium leading-relaxed opacity-40 italic">{quoteFinePrint}</p></div>
                         </div>
                         <div className="text-center"><button onClick={() => setView('rep')} className="text-black font-bold text-[10px] uppercase tracking-widest opacity-20 hover:opacity-60 transition-all">Back to builder</button></div>
                     </div>
@@ -1056,7 +1063,7 @@ const App = ({ config }) => {
                                                         
                                                         <div className="mt-12 flex items-start gap-2 opacity-60 border-t border-black/10 pt-4">
                                                             <span className="text-[9px] font-medium shrink-0 mt-0.5">*</span>
-                                                            <p className="text-[9px] font-medium leading-relaxed italic">{quoteFinePrint}</p>
+                                                            <p className="text-[7px] font-medium leading-relaxed italic">{quoteFinePrint}</p>
                                                         </div>
                                                     </div>
                                                 );

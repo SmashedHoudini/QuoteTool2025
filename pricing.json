@@ -325,6 +325,10 @@
           48
         ],
         "connectedDeviceDiscountRate": 0.5,
+        "finePrint": {
+          "withEstimatedTaxes": "Estimate only. Does not constitute a binding agreement. Activation fee(s) not included, where applicable, unless stated. Promotions are subject to change, and this quote is only guaranteed for today. This quote system was designed independently for customer convenience and is not an official system of, nor endorsed by, TCC or Verizon Wireless.",
+          "withoutEstimatedTaxes": "Estimate only. Does not constitute a binding agreement. Taxes, surcharges, and activation fee(s) not included, where applicable, unless stated. Promotions are subject to change, and this quote is only guaranteed for today. This quote system was designed independently for customer convenience and is not an official system of, nor endorsed by, TCC or Verizon "
+        },
         "taxes&surcharges": {
           "Smartphone": 7,
           "Tablet": 4,
@@ -765,6 +769,10 @@
       48
     ],
     "connectedDeviceDiscountRate": 0.5,
+    "finePrint": {
+      "withEstimatedTaxes": "Estimate only. Does not constitute a binding agreement. Activation fee(s) not included, where applicable, unless stated. Promotions are subject to change, and this quote is only guaranteed for today. This quote system was designed independently for customer convenience and is not an official system of, nor endorsed by, TCC or Verizon Wireless.",
+      "withoutEstimatedTaxes": "Estimate only. Does not constitute a binding agreement. Taxes, surcharges, and activation fee(s) not included, where applicable, unless stated. Promotions are subject to change, and this quote is only guaranteed for today. This quote system was designed independently for customer convenience and is not an official system of, nor endorsed by, TCC or Verizon Wireless."
+    },
     "taxes&surcharges": {
       "Smartphone": 7,
       "Tablet": 4,

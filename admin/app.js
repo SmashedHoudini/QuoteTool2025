@@ -27,6 +27,10 @@
     };
     const EMPTY_PERK = { name: 'New Perk', cost: 0, savings: 0 };
     const EMPTY_DEVICE = { id: '', enabled: true, type: 'Smartphone', manufacturer: '', model: '', storage: '', price: 0 };
+    const DEFAULT_FINE_PRINT = {
+        withEstimatedTaxes: 'Estimate only. Activation fees not included. Promotions may change. Quote guaranteed for today. Device financing and credits follow the selected device term.',
+        withoutEstimatedTaxes: 'Estimate only. Taxes, surcharges, and activation fees not included. Promotions may change. Quote guaranteed for today. Device financing and credits follow the selected device term.'
+    };
 
     let config = null;
     let activeProfileKey = 'consumer';
@@ -139,6 +143,10 @@
         target.quoteSettings = target.quoteSettings || {};
         target.quoteSettings['taxes&surcharges'] = target.quoteSettings['taxes&surcharges'] || {};
         target.quoteSettings.individualProtection = target.quoteSettings.individualProtection || {};
+        target.quoteSettings.finePrint = {
+            ...DEFAULT_FINE_PRINT,
+            ...(target.quoteSettings.finePrint || {})
+        };
         target.lineTypes.forEach(type => {
             if (!type.customType && !type.planKey) type.planKey = slugPlanKey(type.name);
             if (!type.planPricing) type.planPricing = type.customType ? 'custom' : 'flat';
@@ -194,6 +202,7 @@
             financingMonths: 36,
             financingOptions: [12, 24, 36, 48],
             connectedDeviceDiscountRate: 0.5,
+            finePrint: clone(DEFAULT_FINE_PRINT),
             'taxes&surcharges': { Smartphone: 0, Tablet: 0, Watch: 0, 'Home Internet': 0, Custom: 0 },
             individualProtection: { Smartphone: 0, Watch: 0, Tablet: 0 },
             multiDeviceProtection: { perLine: 0, monthlyCap: 0 }
@@ -321,6 +330,13 @@
         <label>
             <span>${label}</span>
             <input data-field="${path}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}">
+        </label>
+    `;
+
+    const textareaField = (label, path, value, placeholder = '') => `
+        <label class="wide-field">
+            <span>${label}</span>
+            <textarea data-field="${path}" placeholder="${escapeHtml(placeholder)}">${escapeHtml(value)}</textarea>
         </label>
     `;
 
@@ -591,6 +607,13 @@
                     <div class="form-grid">
                         ${selectField('Default financing term', 'quoteSettings.financingMonths', String(settings.financingMonths), financingOptions.map(String))}
                         ${numberField('Connected discount rate', 'quoteSettings.connectedDeviceDiscountRate', settings.connectedDeviceDiscountRate)}
+                    </div>
+                </div>
+                <div class="settings-panel">
+                    <h3>Customer View Fine Print</h3>
+                    <div class="form-grid">
+                        ${textareaField('Without est. taxes/surcharges', 'quoteSettings.finePrint.withoutEstimatedTaxes', settings.finePrint.withoutEstimatedTaxes)}
+                        ${textareaField('With est. taxes/surcharges', 'quoteSettings.finePrint.withEstimatedTaxes', settings.finePrint.withEstimatedTaxes)}
                     </div>
                 </div>
                 <div class="settings-panel">

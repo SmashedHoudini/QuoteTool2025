@@ -24,7 +24,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
     font: inherit;
 }
 
@@ -436,10 +437,10 @@ label span {
 }
 
 input,
-select {
+select,
+textarea {
     width: 100%;
     min-width: 0;
-    height: 32px;
     border: 1px solid var(--line-dark);
     border-radius: 3px;
     background: #fff;
@@ -448,12 +449,28 @@ select {
     outline: none;
 }
 
+input,
+select {
+    height: 32px;
+}
+
+textarea {
+    min-height: 104px;
+    resize: vertical;
+    line-height: 1.4;
+}
+
+.wide-field {
+    grid-column: 1 / -1;
+}
+
 select {
     line-height: 18px;
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
     border-color: var(--blue);
     box-shadow: 0 0 0 2px rgba(29, 95, 159, 0.12);
 }
