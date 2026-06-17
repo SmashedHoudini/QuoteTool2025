@@ -59,6 +59,8 @@ const getQuoteFinePrint = (settings, includeEstimatedTaxes) => {
     const key = includeEstimatedTaxes ? 'withEstimatedTaxes' : 'withoutEstimatedTaxes';
     return settings?.finePrint?.[key] ?? DEFAULT_FINE_PRINT[key];
 };
+const MAX_QUOTES_PER_PROFILE = 4;
+const createQuoteEntryId = () => `quote-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 const App = ({ config }) => {
     const [quoteProfileKey, setQuoteProfileKey] = useState(window.QuoteTool.DEFAULT_PROFILE_KEY || 'consumer');
@@ -84,6 +86,7 @@ const App = ({ config }) => {
     const [showAccountAdj, setShowAccountAdj] = useState(false);
     const [oneTimeCredits, setOneTimeCredits] = useState([]);
     const [showOneTimeCreditsModal, setShowOneTimeCreditsModal] = useState(false);
+    const [quoteDrafts, setQuoteDrafts] = useState({});
     const [lastLineAdjustmentSource, setLastLineAdjustmentSource] = useState(null);
     const [copiedLineTemplate, setCopiedLineTemplate] = useState(null);
     const [copiedLineAdjustment, setCopiedLineAdjustment] = useState(null);
@@ -113,6 +116,102 @@ const App = ({ config }) => {
     // Share Link States
     const [isCopied, setIsCopied] = useState(false);
 
+    const createFreshQuoteDraft = (profileKey) => {
+        const profileConfig = getPricingProfile(config, profileKey);
+        const defaultType = getLineTypes(profileConfig).find(type => !type.customType)?.name || 'Smartphone';
+        return {
+            lines: [createLine(defaultType, 1, profileConfig)],
+            accountAdjustments: [],
+            multiDeviceProtection: false,
+            oneTimeCredits: [],
+            includeEstimatedTaxes: false
+        };
+    };
+
+    const createCurrentQuoteDraft = () => ({
+        lines,
+        accountAdjustments,
+        multiDeviceProtection,
+        oneTimeCredits,
+        includeEstimatedTaxes
+    });
+
+    const normalizeQuoteDraft = (profileKey, draft) => {
+        const freshDraft = createFreshQuoteDraft(profileKey);
+        if (!draft || !Array.isArray(draft.lines)) return freshDraft;
+        return {
+            ...freshDraft,
+            ...draft,
+            lines: draft.lines,
+            accountAdjustments: draft.accountAdjustments || [],
+            oneTimeCredits: draft.oneTimeCredits || [],
+            multiDeviceProtection: Boolean(draft.multiDeviceProtection),
+            includeEstimatedTaxes: Boolean(draft.includeEstimatedTaxes)
+        };
+    };
+
+    const createQuoteEntry = (profileKey, draft) => ({
+        id: createQuoteEntryId(),
+        draft: normalizeQuoteDraft(profileKey, draft)
+    });
+
+    const normalizeQuoteSet = (profileKey, value, fallbackDraft = null) => {
+        if (Array.isArray(value?.quotes) && value.quotes.length > 0) {
+            const quotes = value.quotes.slice(0, MAX_QUOTES_PER_PROFILE).map(quote => ({
+                id: quote.id || createQuoteEntryId(),
+                draft: normalizeQuoteDraft(profileKey, quote.draft)
+            }));
+            const activeQuoteId = quotes.some(quote => quote.id === value.activeQuoteId)
+                ? value.activeQuoteId
+                : quotes[0].id;
+            return { activeQuoteId, quotes };
+        }
+
+        const initialEntry = createQuoteEntry(profileKey, value?.lines !== undefined ? value : fallbackDraft);
+        return {
+            activeQuoteId: initialEntry.id,
+            quotes: [initialEntry]
+        };
+    };
+
+    const getQuoteSet = (profileKey, source = quoteDrafts, fallbackDraft = null) => (
+        normalizeQuoteSet(profileKey, source[profileKey], fallbackDraft)
+    );
+
+    const saveDraftInQuoteSet = (profileKey, draft, source = quoteDrafts) => {
+        const quoteSet = getQuoteSet(profileKey, source, draft);
+        return {
+            ...quoteSet,
+            quotes: quoteSet.quotes.map(quote => (
+                quote.id === quoteSet.activeQuoteId ? { ...quote, draft: normalizeQuoteDraft(profileKey, draft) } : quote
+            ))
+        };
+    };
+
+    const applyQuoteDraft = (draft) => {
+        setLines(draft.lines || []);
+        setAccountAdjustments(draft.accountAdjustments || []);
+        setMultiDeviceProtection(Boolean(draft.multiDeviceProtection));
+        setOneTimeCredits(draft.oneTimeCredits || []);
+        setIncludeEstimatedTaxes(Boolean(draft.includeEstimatedTaxes));
+    };
+
+    const resetTransientQuoteState = () => {
+        setActivePerkLineId(null);
+        setActiveHardwareLineId(null);
+        setActiveAdjLineId(null);
+        setShowAccountAdj(false);
+        setShowOneTimeCreditsModal(false);
+        setActiveCustomTaxLineId(null);
+        setActiveCustomProtectionLineId(null);
+        setLastLineAdjustmentSource(null);
+        setCopiedLineTemplate(null);
+        setCopiedLineAdjustment(null);
+        setCopiedAccountAdjustment(null);
+        setCopiedOneTimeItem(null);
+        closeHardwareModal();
+    };
+
     // Import a quote from the URL once, then fall back to one blank phone line.
     useEffect(() => {
         let loadedFromHash = false;
@@ -120,8 +219,39 @@ const App = ({ config }) => {
         try {
             const state = parseQuoteHash(window.location.hash);
             if (state) {
-                if (state.lines && state.lines.length > 0) {
-                    setLines(state.lines);
+                const nextProfileKey = state.quoteProfileKey || quoteProfileKey;
+                if (state.quoteProfileKey) setQuoteProfileKey(state.quoteProfileKey);
+
+                if (state.profileQuoteSets) {
+                    const nextQuoteSet = normalizeQuoteSet(nextProfileKey, state.profileQuoteSets[nextProfileKey]);
+                    const activeQuote = nextQuoteSet.quotes.find(quote => quote.id === nextQuoteSet.activeQuoteId) || nextQuoteSet.quotes[0];
+                    setQuoteDrafts({
+                        ...state.profileQuoteSets,
+                        [nextProfileKey]: nextQuoteSet
+                    });
+                    applyQuoteDraft(activeQuote.draft);
+                    loadedFromHash = true;
+                } else if (state.profileDrafts) {
+                    const profileQuoteSets = Object.entries(state.profileDrafts).reduce((sets, [profileKey, draft]) => ({
+                        ...sets,
+                        [profileKey]: normalizeQuoteSet(profileKey, draft)
+                    }), {});
+                    const nextQuoteSet = profileQuoteSets[nextProfileKey] || normalizeQuoteSet(nextProfileKey, null);
+                    const activeQuote = nextQuoteSet.quotes.find(quote => quote.id === nextQuoteSet.activeQuoteId) || nextQuoteSet.quotes[0];
+                    setQuoteDrafts({
+                        ...profileQuoteSets,
+                        [nextProfileKey]: nextQuoteSet
+                    });
+                    applyQuoteDraft(activeQuote.draft);
+                    loadedFromHash = true;
+                } else if (state.lines && state.lines.length > 0) {
+                    applyQuoteDraft({
+                        lines: state.lines,
+                        accountAdjustments: state.accountAdjustments || [],
+                        multiDeviceProtection: state.multiDeviceProtection,
+                        oneTimeCredits: state.oneTimeCredits || [],
+                        includeEstimatedTaxes: state.includeEstimatedTaxes
+                    });
                     loadedFromHash = true;
                 }
                 if (state.accountAdjustments) setAccountAdjustments(state.accountAdjustments);
@@ -130,7 +260,6 @@ const App = ({ config }) => {
                 if (state.includeEstimatedTaxes !== undefined) setIncludeEstimatedTaxes(state.includeEstimatedTaxes);
                 if (state.showLegacyPlans !== undefined) setShowLegacyPlans(state.showLegacyPlans);
                 if (state.showAutoPayAdjustments !== undefined) setShowAutoPayAdjustments(state.showAutoPayAdjustments);
-                if (state.quoteProfileKey) setQuoteProfileKey(state.quoteProfileKey);
                 if (state.customerName) {
                     setCustomerName(state.customerName);
                     setShowNameField(true);
@@ -141,7 +270,7 @@ const App = ({ config }) => {
         }
         
         if (!loadedFromHash && lines.length === 0) {
-            addLine(LINE_TYPES.find(type => !type.customType)?.name || 'Smartphone');
+            applyQuoteDraft(createFreshQuoteDraft(quoteProfileKey));
         }
     }, []);
 
@@ -206,12 +335,18 @@ const App = ({ config }) => {
     };
 
     const handleShareLink = () => {
+        const currentDraft = createCurrentQuoteDraft();
+        const profileQuoteSets = {
+            ...quoteDrafts,
+            [quoteProfileKey]: saveDraftInQuoteSet(quoteProfileKey, currentDraft)
+        };
         const shareUrl = createShareUrl({
             lines,
             accountAdjustments,
             multiDeviceProtection,
             oneTimeCredits,
             includeEstimatedTaxes,
+            profileQuoteSets,
             showLegacyPlans,
             showAutoPayAdjustments,
             customerName,
@@ -244,16 +379,57 @@ const App = ({ config }) => {
 
     const switchQuoteProfile = (profileKey) => {
         if (profileKey === quoteProfileKey) return;
-        const nextConfig = getPricingProfile(config, profileKey);
-        const nextTypes = getLineTypes(nextConfig);
-        const fallbackType = nextTypes.find(type => !type.customType)?.name || 'Smartphone';
-        setQuoteProfileKey(profileKey);
-        setMultiDeviceProtection(false);
-        setLines(prev => prev.map(line => {
-            const nextType = nextTypes.some(type => type.name === line.type) ? line.type : fallbackType;
-            return withPlanDefaultForType(line, { type: nextType, perks: [] }, nextConfig);
+        const currentDraft = createCurrentQuoteDraft();
+        const savedCurrentSet = saveDraftInQuoteSet(quoteProfileKey, currentDraft);
+        const nextSource = {
+            ...quoteDrafts,
+            [quoteProfileKey]: savedCurrentSet
+        };
+        const nextQuoteSet = getQuoteSet(profileKey, nextSource, createFreshQuoteDraft(profileKey));
+        const activeQuote = nextQuoteSet.quotes.find(quote => quote.id === nextQuoteSet.activeQuoteId) || nextQuoteSet.quotes[0];
+        setQuoteDrafts(prev => ({
+            ...prev,
+            [quoteProfileKey]: savedCurrentSet,
+            [profileKey]: nextQuoteSet
         }));
-        setActivePerkLineId(null);
+        setQuoteProfileKey(profileKey);
+        applyQuoteDraft(activeQuote.draft);
+        resetTransientQuoteState();
+    };
+
+    const addQuote = () => {
+        const currentSet = saveDraftInQuoteSet(quoteProfileKey, createCurrentQuoteDraft());
+        if (currentSet.quotes.length >= MAX_QUOTES_PER_PROFILE) return;
+
+        const newQuote = createQuoteEntry(quoteProfileKey, createFreshQuoteDraft(quoteProfileKey));
+        const nextSet = {
+            activeQuoteId: newQuote.id,
+            quotes: [...currentSet.quotes, newQuote]
+        };
+        setQuoteDrafts(prev => ({
+            ...prev,
+            [quoteProfileKey]: nextSet
+        }));
+        applyQuoteDraft(newQuote.draft);
+        resetTransientQuoteState();
+    };
+
+    const switchActiveQuote = (quoteId) => {
+        const currentSet = saveDraftInQuoteSet(quoteProfileKey, createCurrentQuoteDraft());
+        if (quoteId === currentSet.activeQuoteId) return;
+
+        const nextQuote = currentSet.quotes.find(quote => quote.id === quoteId);
+        if (!nextQuote) return;
+
+        setQuoteDrafts(prev => ({
+            ...prev,
+            [quoteProfileKey]: {
+                ...currentSet,
+                activeQuoteId: quoteId
+            }
+        }));
+        applyQuoteDraft(nextQuote.draft);
+        resetTransientQuoteState();
     };
     
     const updateLine = (id, updates) => {
@@ -641,6 +817,19 @@ const App = ({ config }) => {
         setSelectedDeviceStorage('');
         setHardwareAmountMode('total');
     };
+    const getQuoteDraftTotal = (draft, profileKey = quoteProfileKey) => {
+        const draftConfig = getPricingProfile(config, profileKey);
+        const result = calculateQuote({
+            lines: draft?.lines || [],
+            multiDeviceProtection: Boolean(draft?.multiDeviceProtection),
+            accountAdjustments: draft?.accountAdjustments || [],
+            oneTimeCredits: draft?.oneTimeCredits || [],
+            includeEstimatedTaxes: Boolean(draft?.includeEstimatedTaxes)
+        }, draftConfig);
+        return result.total || 0;
+    };
+    const activeQuoteSet = saveDraftInQuoteSet(quoteProfileKey, createCurrentQuoteDraft());
+    const canAddQuote = activeQuoteSet.quotes.length < MAX_QUOTES_PER_PROFILE;
     return (
         <div className="min-h-screen">
             {/* Only show nav on quote views. Print preview and standalone tools handle their own navigation. */}
@@ -672,7 +861,7 @@ const App = ({ config }) => {
 
             {isMenuOpen && (
                 <div className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-sm" onClick={() => setIsMenuOpen(false)}>
-                    <aside className="h-full w-[300px] max-w-[82vw] bg-white text-black shadow-2xl border-r border-black/10 p-6 flex flex-col gap-6" onClick={e => e.stopPropagation()}>
+                    <aside className="h-full w-[300px] max-w-[82vw] bg-white text-black shadow-2xl border-r border-black/10 p-6 flex flex-col gap-6 overflow-y-auto" onClick={e => e.stopPropagation()}>
                         <div className="flex items-center justify-between">
                             <div>
                                 <h2 className="text-xl font-black">Quote Options</h2>
@@ -697,6 +886,29 @@ const App = ({ config }) => {
                                     </button>
                                 ))}
                             </div>
+                        </div>
+
+                        <div className="w-full bg-stone-50 border border-black/10 rounded-2xl p-3 space-y-3">
+                            <button onClick={addQuote} disabled={!canAddQuote} className="w-full bg-white border border-black/10 rounded-xl p-3 flex items-center justify-between text-left hover:border-black/20 disabled:opacity-35 disabled:hover:border-black/10 transition-colors">
+                                <div>
+                                    <p className="text-sm font-black">{canAddQuote ? 'Add Quote' : `${MAX_QUOTES_PER_PROFILE} Quote Max`}</p>
+                                </div>
+                                <Icon name="PlusCircle" size={18} className="text-black/40" />
+                            </button>
+
+                            {activeQuoteSet.quotes.length > 1 && (
+                                <div className="space-y-2">
+                                    {activeQuoteSet.quotes.map((quote, index) => {
+                                        const isActiveQuote = quote.id === activeQuoteSet.activeQuoteId;
+                                        return (
+                                            <button key={quote.id} onClick={() => switchActiveQuote(quote.id)} className={`w-full rounded-xl p-3 flex items-center justify-between text-left transition-all ${isActiveQuote ? 'bg-black text-white shadow-sm' : 'bg-white border border-black/10 text-black hover:border-black/20'}`}>
+                                                <span className="text-sm font-black">Quote {index + 1}</span>
+                                                <span className={`text-xs font-black ${isActiveQuote ? 'text-white/70' : 'text-black/45'}`}>${getQuoteDraftTotal(quote.draft).toFixed(2)}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
 
                         <button onClick={() => setIncludeEstimatedTaxes(prev => !prev)} className="w-full bg-stone-50 border border-black/10 rounded-2xl p-4 flex items-center justify-between text-left hover:border-black/20 transition-colors">
