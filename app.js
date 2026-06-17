@@ -84,6 +84,11 @@ const App = ({ config }) => {
     const [showAccountAdj, setShowAccountAdj] = useState(false);
     const [oneTimeCredits, setOneTimeCredits] = useState([]);
     const [showOneTimeCreditsModal, setShowOneTimeCreditsModal] = useState(false);
+    const [lastLineAdjustmentSource, setLastLineAdjustmentSource] = useState(null);
+    const [copiedLineTemplate, setCopiedLineTemplate] = useState(null);
+    const [copiedLineAdjustment, setCopiedLineAdjustment] = useState(null);
+    const [copiedAccountAdjustment, setCopiedAccountAdjustment] = useState(null);
+    const [copiedOneTimeItem, setCopiedOneTimeItem] = useState(null);
     const [editingLabelId, setEditingLabelId] = useState(null);
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [includeEstimatedTaxes, setIncludeEstimatedTaxes] = useState(false);
@@ -223,10 +228,16 @@ const App = ({ config }) => {
         setLines(prev => [...prev, createLine(type, prev.length + 1, activeConfig)]);
     };
 
-    const copyLastLine = () => {
-        if (lines.length === 0) return;
-        const lastLine = lines[lines.length - 1];
-        setLines(prev => [...prev, copyLine(lastLine, prev.length + 1)]);
+    const pasteLine = () => {
+        const copiedLineIsValid = copiedLineTemplate && LINE_TYPES.some(type => type.name === copiedLineTemplate.type);
+        if (!copiedLineIsValid && lines.length === 0) return;
+        const fallbackLine = lines[lines.length - 1];
+        const sourceLine = copiedLineIsValid ? copiedLineTemplate : fallbackLine;
+        setLines(prev => [...prev, copyLine(sourceLine, prev.length + 1)]);
+    };
+
+    const copyLineToClipboard = (line) => {
+        setCopiedLineTemplate(line);
     };
 
     const removeLine = (id) => setLines(prev => prev.filter(l => l.id !== id));
@@ -282,7 +293,62 @@ const App = ({ config }) => {
         }));
     };
 
+    const getAdjustmentTemplate = (adjustment) => ({
+        label: adjustment.label || '',
+        amount: adjustment.amount ?? '',
+        type: adjustment.type || 'credit'
+    });
+
+    const copyAdjustment = (adjustment) => ({
+        ...createAdjustment(),
+        ...getAdjustmentTemplate(adjustment)
+    });
+
+    const getOneTimeItemTemplate = (item) => ({
+        label: item.label || '',
+        amount: item.amount ?? '',
+        type: getOneTimeItemType(item)
+    });
+
+    const copyOneTimeItem = (item) => ({
+        ...createOneTimeCredit(),
+        ...getOneTimeItemTemplate(item)
+    });
+
+    const copyAdjustmentToClipboard = (adjustment) => {
+        if (showAccountAdj) {
+            setCopiedAccountAdjustment(getAdjustmentTemplate(adjustment));
+            return;
+        }
+
+        setCopiedLineAdjustment(getAdjustmentTemplate(adjustment));
+    };
+
+    const copyOneTimeItemToClipboard = (item) => {
+        setCopiedOneTimeItem(getOneTimeItemTemplate(item));
+    };
+
+    const getLastLineAdjustment = () => {
+        if (lastLineAdjustmentSource) {
+            const sourceLine = lines.find(line => line.id === lastLineAdjustmentSource.lineId);
+            const sourceAdjustment = sourceLine?.adjustments.find(adjustment => adjustment.id === lastLineAdjustmentSource.adjustmentId);
+            if (sourceAdjustment) return sourceAdjustment;
+        }
+
+        for (let lineIndex = lines.length - 1; lineIndex >= 0; lineIndex -= 1) {
+            const adjustments = lines[lineIndex].adjustments || [];
+            if (adjustments.length > 0) return adjustments[adjustments.length - 1];
+        }
+
+        return null;
+    };
+
     const updateLineAdjustment = (index, updates) => {
+        const currentAdjustment = lines.find(line => line.id === activeAdjLineId)?.adjustments[index];
+        if (currentAdjustment) {
+            setLastLineAdjustmentSource({ lineId: activeAdjLineId, adjustmentId: currentAdjustment.id });
+        }
+
         setLines(prev => prev.map(line => (
             line.id === activeAdjLineId
                 ? { ...line, adjustments: line.adjustments.map((adjustment, idx) => idx === index ? { ...adjustment, ...updates } : adjustment) }
@@ -323,9 +389,31 @@ const App = ({ config }) => {
             return;
         }
 
+        setLastLineAdjustmentSource({ lineId: activeAdjLineId, adjustmentId: newAdj.id });
         setLines(prev => prev.map(line => (
             line.id === activeAdjLineId
                 ? { ...line, adjustments: [...line.adjustments, newAdj] }
+                : line
+        )));
+    };
+
+    const copyLastAdjustment = () => {
+        if (showAccountAdj) {
+            setAccountAdjustments(prev => {
+                const sourceAdjustment = copiedAccountAdjustment || prev[prev.length - 1];
+                return sourceAdjustment ? [...prev, copyAdjustment(sourceAdjustment)] : prev;
+            });
+            return;
+        }
+
+        const sourceAdjustment = copiedLineAdjustment || getLastLineAdjustment();
+        if (!sourceAdjustment || !activeAdjLineId) return;
+
+        const copiedAdjustment = copyAdjustment(sourceAdjustment);
+        setLastLineAdjustmentSource({ lineId: activeAdjLineId, adjustmentId: copiedAdjustment.id });
+        setLines(prev => prev.map(line => (
+            line.id === activeAdjLineId
+                ? { ...line, adjustments: [...line.adjustments, copiedAdjustment] }
                 : line
         )));
     };
@@ -336,6 +424,17 @@ const App = ({ config }) => {
 
     const removeOneTimeCredit = (index) => {
         setOneTimeCredits(prev => prev.filter((_, idx) => idx !== index));
+    };
+
+    const addOneTimeItem = () => {
+        setOneTimeCredits(prev => [...prev, createOneTimeCredit()]);
+    };
+
+    const copyLastOneTimeItem = () => {
+        setOneTimeCredits(prev => {
+            const sourceItem = copiedOneTimeItem || prev[prev.length - 1];
+            return sourceItem ? [...prev, copyOneTimeItem(sourceItem)] : prev;
+        });
     };
 
     const getPerkCost = (perkName) => (
@@ -457,6 +556,13 @@ const App = ({ config }) => {
         .sort((a, b) => getStorageSortValue(a.storage) - getStorageSortValue(b.storage));
     const storageOptions = [...new Set(modelDevices.map(device => device.storage).filter(Boolean))]
         .sort((a, b) => getStorageSortValue(a) - getStorageSortValue(b));
+    const hasCopiedAdjustment = showAccountAdj ? Boolean(copiedAccountAdjustment) : Boolean(copiedLineAdjustment);
+    const hasCopiedOneTimeItem = Boolean(copiedOneTimeItem);
+    const hasCopiedLine = Boolean(copiedLineTemplate);
+    const canCopyLastAdjustment = showAccountAdj
+        ? Boolean(copiedAccountAdjustment || accountAdjustments.length > 0)
+        : Boolean(copiedLineAdjustment || getLastLineAdjustment());
+    const canCopyLastOneTimeItem = Boolean(copiedOneTimeItem || oneTimeCredits.length > 0);
     const getDefaultAutoPayForLine = (line) => {
         if (!line) return 0;
         const typeConfig = getLineType(activeConfig, line.type);
@@ -734,7 +840,10 @@ const App = ({ config }) => {
                                             {multiDeviceProtection && isCustomLineType(line.type) && (
                                                 <button onClick={() => updateLine(line.id, { customIncludeInVmdp: !line.customIncludeInVmdp })} className={`col-span-2 flex items-center gap-2 px-5 py-2.5 border rounded-lg text-xs font-bold transition-all ${line.customIncludeInVmdp ? 'bg-black text-white' : 'bg-stone-50 text-black/60'}`}><Icon name="ShieldCheck" size={16} /> Include in VMDP</button>
                                             )}
-                                            <button onClick={() => removeLine(line.id)} className="col-span-2 mt-auto flex items-center justify-center gap-2 px-5 py-2 text-xs font-bold text-verizon-red hover:bg-red-50 rounded-lg transition-colors"><Icon name="Trash2" size={16} /> Remove line</button>
+                                            <div className="col-span-2 mt-auto grid grid-cols-2 gap-2">
+                                                <button onClick={() => copyLineToClipboard(lines.find(candidate => candidate.id === line.id) || line)} className="flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-bold text-black/45 hover:text-black hover:bg-stone-100 rounded-lg transition-colors"><Icon name="Copy" size={15} /> Copy line</button>
+                                                <button onClick={() => removeLine(line.id)} className="flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-bold text-verizon-red hover:bg-red-50 rounded-lg transition-colors"><Icon name="Trash2" size={15} /> Remove line</button>
+                                            </div>
                                         </div>
 
                                         <div className="w-full lg:w-36 lg:shrink-0 flex flex-col items-end justify-center border-t lg:border-t-0 lg:border-l border-black/5 pt-5 lg:pt-0 pl-0 lg:pl-6 bg-stone-50/50 -my-5 py-5 pr-5">
@@ -748,7 +857,7 @@ const App = ({ config }) => {
 
                         <div className="flex flex-row gap-4 mt-8">
                             <button onClick={() => addLine(LINE_TYPES.find(type => !type.customType)?.name || 'Smartphone')} className="flex-grow py-8 border-2 border-dashed border-black/10 rounded-2xl flex flex-col items-center justify-center gap-2 text-black/40 hover:text-verizon-red hover:border-red-200 transition-all group"><div className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center group-hover:scale-110 transition-transform"><Icon name="Plus" size={24} /></div><span className="font-bold text-base">Add a line</span></button>
-                            <button onClick={copyLastLine} className="shrink-0 px-6 md:px-10 py-8 border-2 border-dashed border-black/10 rounded-2xl flex flex-col items-center justify-center gap-2 text-black/40 hover:text-black hover:border-black/20 hover:bg-stone-50 transition-all group"><div className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center group-hover:scale-110 transition-transform"><Icon name="Copy" size={20} /></div><span className="font-bold text-sm opacity-60 group-hover:opacity-100 whitespace-nowrap">Copy last</span></button>
+                            <button onClick={pasteLine} disabled={!hasCopiedLine && lines.length === 0} title={hasCopiedLine ? 'Paste copied line' : 'Copy last line'} aria-label={hasCopiedLine ? 'Paste copied line' : 'Copy last line'} className="shrink-0 px-6 md:px-10 py-8 border-2 border-dashed border-black/10 rounded-2xl flex flex-col items-center justify-center gap-2 text-black/40 hover:text-black hover:border-black/20 hover:bg-stone-50 disabled:opacity-35 disabled:hover:text-black/40 disabled:hover:border-black/10 disabled:hover:bg-transparent transition-all group"><div className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center group-hover:scale-110 transition-transform"><Icon name={hasCopiedLine ? "ClipboardPaste" : "Copy"} size={hasCopiedLine ? 22 : 20} /></div>{!hasCopiedLine && <span className="font-bold text-sm opacity-60 group-hover:opacity-100 whitespace-nowrap">Copy last</span>}</button>
                         </div>
 
                         <div className="mt-12 mx-auto max-w-xl p-6 bg-black text-white rounded-[32px] shadow-2xl flex flex-col md:flex-row justify-between items-center gap-6">
@@ -1224,11 +1333,17 @@ const App = ({ config }) => {
                             )}
                             {(showAccountAdj ? accountAdjustments : lines.find(l => l.id === activeAdjLineId)?.adjustments || []).map((adj, i) => (
                                 <div key={adj.id} className="flex flex-col gap-4 bg-stone-50 p-6 rounded-3xl border border-black/5 text-black">
-                                    <div className="flex gap-2 p-1 bg-black/5 rounded-xl self-start"><button onClick={() => updateAdjustment(i, { type: 'credit' })} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${adj.type === 'credit' ? 'bg-emerald-500 text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Credit</button><button onClick={() => updateAdjustment(i, { type: 'charge' })} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${adj.type === 'charge' ? 'bg-black text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Charge</button></div>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div className="flex gap-2 p-1 bg-black/5 rounded-xl self-start"><button onClick={() => updateAdjustment(i, { type: 'credit' })} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${adj.type === 'credit' ? 'bg-emerald-500 text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Credit</button><button onClick={() => updateAdjustment(i, { type: 'charge' })} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${adj.type === 'charge' ? 'bg-black text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Charge</button></div>
+                                        <button onClick={() => copyAdjustmentToClipboard(adj)} title="Copy adjustment" aria-label="Copy adjustment" className="p-2.5 bg-white border border-black/10 text-black/35 hover:text-black hover:border-black/20 rounded-xl transition-colors"><Icon name="Copy" size={17} /></button>
+                                    </div>
                                     <div className="flex gap-4 items-end text-black"><div className="flex-grow space-y-1"><label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Label</label><input value={adj.label} onFocus={e => e.target.select()} placeholder="Adjustment Label" onChange={e => updateAdjustment(i, { label: e.target.value })} className="w-full bg-white border border-black/10 px-4 py-3 rounded-xl text-sm font-bold focus:border-black outline-none text-black" /></div><div className="w-28 space-y-1"><label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Amount</label><input type="number" inputMode="decimal" value={adj.amount} onWheel={e => e.currentTarget.blur()} onFocus={e => e.target.select()} placeholder="0.00" onChange={e => updateAdjustment(i, { amount: e.target.value })} className="w-full bg-white border border-black/10 px-4 py-3 rounded-xl text-sm font-bold focus:border-black outline-none text-black" /></div><button onClick={() => removeAdjustment(i)} className="p-3 text-verizon-red hover:bg-red-50 rounded-lg transition-colors"><Icon name="Trash2" size={20}/></button></div>
                                 </div>
                             ))}
-                            <button onClick={addAdjustment} className="w-full py-6 border-2 border-dashed border-black/10 rounded-2xl text-black/40 hover:text-black font-bold flex items-center justify-center gap-3 transition-all text-base uppercase"><Icon name="PlusCircle" size={20}/> Add adjustment</button>
+                            <div className="flex flex-row gap-4">
+                                <button onClick={addAdjustment} className="flex-grow py-6 border-2 border-dashed border-black/10 rounded-2xl text-black/40 hover:text-black font-bold flex items-center justify-center gap-3 transition-all text-base uppercase"><Icon name="PlusCircle" size={20}/> Add adjustment</button>
+                                <button onClick={copyLastAdjustment} disabled={!canCopyLastAdjustment} title={hasCopiedAdjustment ? 'Paste copied adjustment' : 'Copy last adjustment'} aria-label={hasCopiedAdjustment ? 'Paste copied adjustment' : 'Copy last adjustment'} className="shrink-0 min-w-[86px] px-4 sm:px-6 py-6 border-2 border-dashed border-black/10 rounded-2xl text-black/40 hover:text-black hover:border-black/20 hover:bg-stone-50 disabled:hover:text-black/40 disabled:hover:border-black/10 disabled:hover:bg-transparent disabled:opacity-35 font-bold flex flex-col items-center justify-center gap-1.5 transition-all uppercase group"><Icon name={hasCopiedAdjustment ? "ClipboardPaste" : "Copy"} size={hasCopiedAdjustment ? 22 : 18} />{!hasCopiedAdjustment && <span className="text-[10px] sm:text-xs whitespace-nowrap leading-none">Copy Last</span>}</button>
+                            </div>
                         </div>
                         <div className="p-8 border-t border-black/5 text-black"><button onClick={() => { setActiveAdjLineId(null); setShowAccountAdj(false); }} className="w-full py-6 bg-black text-white rounded-2xl font-black text-xl hover:scale-[1.01] active:scale-95 transition-all shadow-md text-white">Done</button></div>
                     </div>
@@ -1260,7 +1375,10 @@ const App = ({ config }) => {
                         <div className="p-10 space-y-6 max-h-[60vh] overflow-y-auto">
                             {oneTimeCredits.map((item, i) => (
                                 <div key={item.id} className="flex flex-col gap-4 bg-stone-50 p-6 rounded-3xl border border-black/5 text-black">
-                                    <div className="flex gap-2 p-1 bg-black/5 rounded-xl self-start"><button onClick={() => updateOneTimeCredit(i, { type: 'credit' })} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${getOneTimeItemType(item) === 'credit' ? 'bg-emerald-500 text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Credit</button><button onClick={() => updateOneTimeCredit(i, { type: 'charge' })} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${getOneTimeItemType(item) === 'charge' ? 'bg-black text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Charge</button></div>
+                                    <div className="flex items-center justify-between gap-3">
+                                        <div className="flex gap-2 p-1 bg-black/5 rounded-xl self-start"><button onClick={() => updateOneTimeCredit(i, { type: 'credit' })} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${getOneTimeItemType(item) === 'credit' ? 'bg-emerald-500 text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Credit</button><button onClick={() => updateOneTimeCredit(i, { type: 'charge' })} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${getOneTimeItemType(item) === 'charge' ? 'bg-black text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Charge</button></div>
+                                        <button onClick={() => copyOneTimeItemToClipboard(item)} title="Copy one-time item" aria-label="Copy one-time item" className="p-2.5 bg-white border border-black/10 text-black/35 hover:text-black hover:border-black/20 rounded-xl transition-colors"><Icon name="Copy" size={17} /></button>
+                                    </div>
                                     <div className="flex gap-4 items-end text-black">
                                         <div className="flex-grow space-y-1"><label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Label</label><input value={item.label} onFocus={e => e.target.select()} placeholder={getOneTimeItemType(item) === 'credit' ? 'Credit Label' : 'Charge Label'} onChange={e => updateOneTimeCredit(i, { label: e.target.value })} className="w-full bg-white border border-black/10 px-4 py-3 rounded-xl text-sm font-bold focus:border-black outline-none text-black" /></div>
                                         <div className="w-28 space-y-1"><label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Amount</label><input type="number" inputMode="decimal" value={item.amount} onWheel={e => e.currentTarget.blur()} onFocus={e => e.target.select()} placeholder="0.00" onChange={e => updateOneTimeCredit(i, { amount: e.target.value })} className="w-full bg-white border border-black/10 px-4 py-3 rounded-xl text-sm font-bold focus:border-black outline-none text-black" /></div>
@@ -1268,7 +1386,10 @@ const App = ({ config }) => {
                                     </div>
                                 </div>
                             ))}
-                            <button onClick={() => setOneTimeCredits(prev => [...prev, createOneTimeCredit()])} className="w-full py-6 border-2 border-dashed border-black/10 rounded-2xl text-black/40 hover:text-black font-bold flex items-center justify-center gap-3 transition-all text-base uppercase"><Icon name="PlusCircle" size={20}/> Add one-time item</button>
+                            <div className="flex flex-row gap-4">
+                                <button onClick={addOneTimeItem} className="flex-grow py-6 border-2 border-dashed border-black/10 rounded-2xl text-black/40 hover:text-black font-bold flex items-center justify-center gap-3 transition-all text-base uppercase"><Icon name="PlusCircle" size={20}/> Add one-time item</button>
+                                <button onClick={copyLastOneTimeItem} disabled={!canCopyLastOneTimeItem} title={hasCopiedOneTimeItem ? 'Paste copied one-time item' : 'Copy last one-time item'} aria-label={hasCopiedOneTimeItem ? 'Paste copied one-time item' : 'Copy last one-time item'} className="shrink-0 min-w-[86px] px-4 sm:px-6 py-6 border-2 border-dashed border-black/10 rounded-2xl text-black/40 hover:text-black hover:border-black/20 hover:bg-stone-50 disabled:hover:text-black/40 disabled:hover:border-black/10 disabled:hover:bg-transparent disabled:opacity-35 font-bold flex flex-col items-center justify-center gap-1.5 transition-all uppercase group"><Icon name={hasCopiedOneTimeItem ? "ClipboardPaste" : "Copy"} size={hasCopiedOneTimeItem ? 22 : 18} />{!hasCopiedOneTimeItem && <span className="text-[10px] sm:text-xs whitespace-nowrap leading-none">Copy Last</span>}</button>
+                            </div>
                         </div>
                         <div className="p-8 border-t border-black/5 text-black"><button onClick={() => setShowOneTimeCreditsModal(false)} className="w-full py-6 bg-black text-white rounded-2xl font-black text-xl hover:scale-[1.01] active:scale-95 transition-all shadow-md text-white">Done</button></div>
                     </div>
