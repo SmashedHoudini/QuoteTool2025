@@ -77,6 +77,26 @@
         return options[0] || fallback;
     };
 
+    const getAvailablePerksForLine = (config, line) => {
+        const perks = Array.isArray(config.perks) ? config.perks : [];
+        const typeConfig = getLineType(config, line?.type);
+        if (!typeConfig?.planKey) return perks;
+
+        const plan = (config[typeConfig.planKey] || []).find(candidate => candidate.name === line?.planName);
+        if (!plan || !Array.isArray(plan.allowedPerkIds)) return perks;
+
+        const allowedIds = new Set(plan.allowedPerkIds);
+        return perks.filter(perk => allowedIds.has(perk.id));
+    };
+
+    const sanitizeLinePerks = (config, line) => {
+        const availableNames = new Set(getAvailablePerksForLine(config, line).map(perk => perk.name));
+        return {
+            ...line,
+            perks: (line?.perks || []).filter(name => availableNames.has(name))
+        };
+    };
+
     const validatePricingProfile = (config, label = 'pricing.json') => {
         getLineTypes(config).filter(type => !type.customType).forEach(type => {
             requiredArray(config[type.planKey], type.planKey).forEach((plan, index) => {
@@ -90,9 +110,27 @@
                 }
             });
         });
+        const perkIds = new Set();
         requiredArray(config.perks, 'perks').forEach((perk, index) => {
+            if (typeof perk.id !== 'string' || !perk.id.trim()) {
+                throw new Error(`${label}.perks[${index}] is missing a stable id.`);
+            }
+            if (perkIds.has(perk.id)) {
+                throw new Error(`${label}.perks contains duplicate id "${perk.id}".`);
+            }
+            perkIds.add(perk.id);
             requiredNumber(perk.cost, `${label}.perks[${index}].cost`);
             requiredNumber(perk.savings, `${label}.perks[${index}].savings`);
+        });
+        getLineTypes(config).filter(type => !type.customType).forEach(type => {
+            requiredArray(config[type.planKey], type.planKey).forEach((plan, index) => {
+                if (plan.allowedPerkIds === undefined) return;
+                requiredArray(plan.allowedPerkIds, `${label}.${type.planKey}[${index}].allowedPerkIds`).forEach(perkId => {
+                    if (!perkIds.has(perkId)) {
+                        throw new Error(`${label}.${type.planKey}[${index}] references unknown perk id "${perkId}".`);
+                    }
+                });
+            });
         });
 
         const settings = requiredObject(config.quoteSettings, 'quoteSettings');
@@ -201,7 +239,8 @@
 
         // First pass: price each line by itself. Account-level discounts and
         // connected-device slots are easier to reason about after this.
-        const baseProcessed = lines.map(line => {
+        const baseProcessed = lines.map(rawLine => {
+            const line = sanitizeLinePerks(config, rawLine);
             let planBase = 0;
             let autopaySaving = 0;
             let mhSaving = 0;
@@ -352,6 +391,8 @@
         getLineType,
         getFinancingOptions,
         getLineFinancingMonths,
+        getAvailablePerksForLine,
+        sanitizeLinePerks,
         DEFAULT_LINE_TYPES: clone(DEFAULT_LINE_TYPES),
         DEFAULT_PROFILE_KEY,
         PROFILE_KEYS

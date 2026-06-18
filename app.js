@@ -18,6 +18,8 @@ const {
     getLineType,
     getFinancingOptions,
     getLineFinancingMonths,
+    getAvailablePerksForLine,
+    sanitizeLinePerks,
     calculateQuote,
     createLine,
     copyLine,
@@ -150,12 +152,13 @@ const App = ({ config }) => {
     const normalizeQuoteDraft = (profileKey, draft) => {
         const freshDraft = createFreshQuoteDraft(profileKey);
         if (!draft || !Array.isArray(draft.lines)) return freshDraft;
+        const profileConfig = getPricingProfile(config, profileKey);
         const quoteDraft = { ...draft };
         delete quoteDraft.includeEstimatedTaxes;
         return {
             ...freshDraft,
             ...quoteDraft,
-            lines: draft.lines,
+            lines: draft.lines.map(line => sanitizeLinePerks(profileConfig, line)),
             accountAdjustments: draft.accountAdjustments || [],
             oneTimeCredits: draft.oneTimeCredits || [],
             multiDeviceProtection: Boolean(draft.multiDeviceProtection)
@@ -200,8 +203,9 @@ const App = ({ config }) => {
         };
     };
 
-    const applyQuoteDraft = (draft) => {
-        setLines(draft.lines || []);
+    const applyQuoteDraft = (draft, profileKey = quoteProfileKey) => {
+        const profileConfig = getPricingProfile(config, profileKey);
+        setLines((draft.lines || []).map(line => sanitizeLinePerks(profileConfig, line)));
         setAccountAdjustments(draft.accountAdjustments || []);
         setMultiDeviceProtection(Boolean(draft.multiDeviceProtection));
         setOneTimeCredits(draft.oneTimeCredits || []);
@@ -236,7 +240,7 @@ const App = ({ config }) => {
                         ...state.profileQuoteSets,
                         [nextProfileKey]: nextQuoteSet
                     });
-                    applyQuoteDraft(activeQuote.draft);
+                    applyQuoteDraft(activeQuote.draft, nextProfileKey);
                     loadedFromHash = true;
                 } else if (state.profileDrafts) {
                     const profileQuoteSets = Object.entries(state.profileDrafts).reduce((sets, [profileKey, draft]) => ({
@@ -249,7 +253,7 @@ const App = ({ config }) => {
                         ...profileQuoteSets,
                         [nextProfileKey]: nextQuoteSet
                     });
-                    applyQuoteDraft(activeQuote.draft);
+                    applyQuoteDraft(activeQuote.draft, nextProfileKey);
                     loadedFromHash = true;
                 } else if (state.lines && state.lines.length > 0) {
                     applyQuoteDraft({
@@ -258,7 +262,7 @@ const App = ({ config }) => {
                         multiDeviceProtection: state.multiDeviceProtection,
                         oneTimeCredits: state.oneTimeCredits || [],
                         includeEstimatedTaxes: state.includeEstimatedTaxes
-                    });
+                    }, nextProfileKey);
                     loadedFromHash = true;
                 }
                 if (state.accountAdjustments) setAccountAdjustments(state.accountAdjustments);
@@ -399,7 +403,7 @@ const App = ({ config }) => {
             [profileKey]: nextQuoteSet
         }));
         setQuoteProfileKey(profileKey);
-        applyQuoteDraft(activeQuote.draft);
+        applyQuoteDraft(activeQuote.draft, profileKey);
         resetTransientQuoteState();
     };
 
@@ -480,7 +484,7 @@ const App = ({ config }) => {
     
     const updateLine = (id, updates) => {
         setLines(prev => prev.map(l => (
-            l.id === id ? withPlanDefaultForType(l, updates, activeConfig) : l
+            l.id === id ? sanitizeLinePerks(activeConfig, withPlanDefaultForType(l, updates, activeConfig)) : l
         )));
     };
 
@@ -766,6 +770,10 @@ const App = ({ config }) => {
         ? getLineFinancingMonths(activeHardwareLine, activeConfig.quoteSettings)
         : (FINANCING_OPTIONS[0] || FINANCING_MONTHS);
     const activeAdjustmentLine = lines.find(l => l.id === activeAdjLineId);
+    const activePerkLine = lines.find(l => l.id === activePerkLineId);
+    const availablePerksForActiveLine = activePerkLine
+        ? getAvailablePerksForLine(activeConfig, activePerkLine)
+        : [];
     const activeCustomTaxLine = lines.find(l => l.id === activeCustomTaxLineId);
     const activeCustomProtectionLine = lines.find(l => l.id === activeCustomProtectionLineId);
     const catalogDevicesForLine = (activeConfig.devices || [])
@@ -1637,14 +1645,18 @@ const App = ({ config }) => {
                 </div>
             )}
 
-            {activePerkLineId && lines.find(l => l.id === activePerkLineId) && (
+            {activePerkLineId && activePerkLine && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setActivePerkLineId(null)}>
                     <div className="relative w-full max-w-2xl bg-white rounded-[40px] overflow-hidden shadow-2xl text-black" onClick={e => e.stopPropagation()}>
                         <div className="p-10 border-b border-black/5 bg-stone-50 flex justify-between items-center"><h2 className="text-xl font-black">Select {ADD_ON_LABEL.toLowerCase()}.</h2><button onClick={() => setActivePerkLineId(null)} className="p-3 hover:bg-black/5 rounded-full transition-colors text-black"><Icon name="X" size={28}/></button></div>
                         <div className="p-10 max-h-[50vh] overflow-y-auto grid grid-cols-1 md:grid-cols-2 gap-5">
-                            {PERKS.map(perk => {
-                                const line = lines.find(l => l.id === activePerkLineId);
-                                const isSel = line?.perks.includes(perk.name);
+                            {availablePerksForActiveLine.length === 0 ? (
+                                <div className="md:col-span-2 rounded-3xl border-2 border-dashed border-black/10 bg-stone-50 p-10 text-center">
+                                    <p className="font-black">No {ADD_ON_LABEL.toLowerCase()} available.</p>
+                                    <p className="mt-2 text-sm text-black/45">This plan does not currently allow any {ADD_ON_LABEL.toLowerCase()}.</p>
+                                </div>
+                            ) : availablePerksForActiveLine.map(perk => {
+                                const isSel = activePerkLine.perks.includes(perk.name);
                                 return (
                                     <button key={perk.name} onClick={() => togglePerk(activePerkLineId, perk.name)} className={`flex items-center justify-between p-6 rounded-3xl border-2 transition-all ${isSel ? 'border-black bg-black text-white shadow-md' : 'border-black/5 text-black hover:border-black/20 hover:bg-stone-50'}`}><div className="flex flex-col text-left"><span className={`font-bold text-lg leading-tight ${isSel ? 'text-white' : 'text-black'}`}>{perk.name}</span><span className={`text-xs font-medium mt-1 ${isSel ? 'text-white/60' : 'text-black/40'}`}>{`$${perk.cost.toFixed(2)}/mo`}</span></div>{isSel && <Icon name="CheckCircle2" size={24} className="text-yellow-300" />}</button>
                                 );

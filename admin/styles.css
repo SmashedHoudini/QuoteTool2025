@@ -211,7 +211,7 @@ main {
 
 .list-row {
     display: grid;
-    grid-template-columns: 24px minmax(190px, 1fr) minmax(0, 2fr) 36px;
+    grid-template-columns: 24px minmax(190px, 1fr) minmax(0, 2fr) minmax(104px, auto);
     gap: 8px;
     align-items: center;
     padding: 8px;
@@ -539,6 +539,64 @@ textarea:focus {
     margin-top: 16px;
 }
 
+.add-on-plan-box {
+    width: min(560px, 100%);
+}
+
+.add-on-plan-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line);
+}
+
+.select-all-option,
+.add-on-option {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+}
+
+.select-all-option {
+    flex: 0 0 auto;
+}
+
+.select-all-option input,
+.add-on-option input {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    accent-color: var(--blue);
+}
+
+.select-all-option span,
+.add-on-option span {
+    margin: 0;
+    color: var(--text);
+    font-size: 13px;
+    letter-spacing: 0;
+    text-transform: none;
+}
+
+.add-on-plan-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    max-height: 52vh;
+    overflow-y: auto;
+    padding: 14px 2px 2px;
+}
+
+.add-on-option {
+    min-height: 42px;
+    padding: 9px 10px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: #fafbfc;
+}
+
 @media (max-width: 960px) {
     .list-row,
     .list-header,
@@ -595,5 +653,14 @@ textarea:focus {
 
     .confirm-actions {
         flex-direction: column-reverse;
+    }
+
+    .add-on-plan-header {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .add-on-plan-list {
+        grid-template-columns: 1fr;
     }
 }

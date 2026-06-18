@@ -271,46 +271,55 @@
       ],
       "perks": [
         {
+          "id": "perk-premium-network-experience",
           "name": "Premium Network Experience",
           "cost": 10,
           "savings": 0
         },
         {
+          "id": "perk-50gb-mobile-hotspot",
           "name": "50GB Mobile Hotspot",
           "cost": 5,
           "savings": 0
         },
         {
+          "id": "perk-enhanced-video-calling",
           "name": "Enhanced Video Calling",
           "cost": 5,
           "savings": 0
         },
         {
+          "id": "perk-international-connectivity",
           "name": "International Connectivity",
           "cost": 10,
           "savings": 0
         },
         {
+          "id": "perk-international-calling",
           "name": "International Calling",
           "cost": 5,
           "savings": 0
         },
         {
+          "id": "perk-unlimited-cloud-storage",
           "name": "Unlimited Cloud Storage",
           "cost": 10,
           "savings": 0
         },
         {
+          "id": "perk-business-mobile-secure-plus",
           "name": "Business Mobile Secure+",
           "cost": 5,
           "savings": 0
         },
         {
+          "id": "perk-google-workspace-business-standard",
           "name": "Google Workspace Business Standard",
           "cost": 16,
           "savings": 0
         },
         {
+          "id": "perk-verizon-business-mobile-internet-security",
           "name": "Verizon Business Mobile Internet Security",
           "cost": 0,
           "savings": 0
@@ -560,7 +569,22 @@
         50,
         40
       ],
-      "autopay": 10
+      "autopay": 10,
+      "allowedPerkIds": [
+        "perk-100gb-hotspot",
+        "perk-disney-bundle",
+        "perk-netflix-hbo-max",
+        "perk-apple-one-individual",
+        "perk-apple-one-family",
+        "perk-apple-music-family",
+        "perk-youtube-premium",
+        "perk-google-ai-pro",
+        "perk-fox-one",
+        "perk-unlimited-cloud-storage",
+        "perk-verizon-family-plus",
+        "perk-second-number",
+        "perk-3-travelpass-days"
+      ]
     },
     {
       "name": "Unlimited Plus",
@@ -571,7 +595,22 @@
         55
       ],
       "autopay": 10,
-      "discountSlots": 1
+      "discountSlots": 1,
+      "allowedPerkIds": [
+        "perk-disney-bundle",
+        "perk-netflix-hbo-max",
+        "perk-100gb-hotspot",
+        "perk-apple-one-individual",
+        "perk-apple-one-family",
+        "perk-apple-music-family",
+        "perk-youtube-premium",
+        "perk-google-ai-pro",
+        "perk-unlimited-cloud-storage",
+        "perk-verizon-family-plus",
+        "perk-second-number",
+        "perk-3-travelpass-days",
+        "perk-fox-one"
+      ]
     },
     {
       "name": "Unlimited Ultimate 1.0",
@@ -583,7 +622,22 @@
       ],
       "autopay": 10,
       "discountSlots": 2,
-      "legacy": true
+      "legacy": true,
+      "allowedPerkIds": [
+        "perk-disney-bundle",
+        "perk-netflix-hbo-max",
+        "perk-100gb-hotspot",
+        "perk-apple-one-individual",
+        "perk-apple-one-family",
+        "perk-apple-music-family",
+        "perk-youtube-premium",
+        "perk-google-ai-pro",
+        "perk-unlimited-cloud-storage",
+        "perk-verizon-family-plus",
+        "perk-second-number",
+        "perk-3-travelpass-days",
+        "perk-fox-one"
+      ]
     },
     {
       "name": "Unlimited Ultimate",
@@ -594,7 +648,22 @@
         70
       ],
       "autopay": 10,
-      "discountSlots": 2
+      "discountSlots": 2,
+      "allowedPerkIds": [
+        "perk-disney-bundle",
+        "perk-netflix-hbo-max",
+        "perk-100gb-hotspot",
+        "perk-apple-one-individual",
+        "perk-apple-one-family",
+        "perk-apple-music-family",
+        "perk-youtube-premium",
+        "perk-google-ai-pro",
+        "perk-unlimited-cloud-storage",
+        "perk-verizon-family-plus",
+        "perk-second-number",
+        "perk-3-travelpass-days",
+        "perk-fox-one"
+      ]
     },
     {
       "name": "Custom",
@@ -610,15 +679,18 @@
   "tabletPlans": [
     {
       "name": "Welcome",
-      "price": 20
+      "price": 20,
+      "allowedPerkIds": []
     },
     {
       "name": "Unlimited",
-      "price": 40
+      "price": 40,
+      "allowedPerkIds": []
     },
     {
       "name": "Unlimited Plus",
-      "price": 50
+      "price": 50,
+      "allowedPerkIds": []
     },
     {
       "name": "Custom",
@@ -628,11 +700,13 @@
   "watchPlans": [
     {
       "name": "Unlimited",
-      "price": 15
+      "price": 15,
+      "allowedPerkIds": []
     },
     {
       "name": "Unlimited Plus",
-      "price": 25
+      "price": 25,
+      "allowedPerkIds": []
     },
     {
       "name": "Custom",
@@ -644,37 +718,115 @@
       "name": "LTE Home",
       "price": 60,
       "mhDiscount": 15,
-      "autopay": 10
+      "autopay": 10,
+      "allowedPerkIds": [
+        "perk-4k-video-streaming",
+        "perk-disney-bundle",
+        "perk-netflix-hbo-max",
+        "perk-apple-one-individual",
+        "perk-apple-one-family",
+        "perk-apple-music-family",
+        "perk-youtube-premium",
+        "perk-google-ai-pro",
+        "perk-fox-one",
+        "perk-verizon-family-plus",
+        "perk-3-travelpass-days"
+      ]
     },
     {
       "name": "LTE Home Plus",
       "price": 80,
       "mhDiscount": 15,
-      "autopay": 10
+      "autopay": 10,
+      "allowedPerkIds": [
+        "perk-disney-bundle",
+        "perk-netflix-hbo-max",
+        "perk-4k-video-streaming",
+        "perk-apple-one-individual",
+        "perk-apple-one-family",
+        "perk-apple-music-family",
+        "perk-youtube-premium",
+        "perk-google-ai-pro",
+        "perk-verizon-family-plus",
+        "perk-3-travelpass-days",
+        "perk-fox-one"
+      ]
     },
     {
       "name": "5G Home",
       "price": 60,
       "mhDiscount": 15,
-      "autopay": 10
+      "autopay": 10,
+      "allowedPerkIds": [
+        "perk-disney-bundle",
+        "perk-netflix-hbo-max",
+        "perk-4k-video-streaming",
+        "perk-apple-one-individual",
+        "perk-apple-one-family",
+        "perk-apple-music-family",
+        "perk-youtube-premium",
+        "perk-google-ai-pro",
+        "perk-verizon-family-plus",
+        "perk-3-travelpass-days",
+        "perk-fox-one"
+      ]
     },
     {
       "name": "5G Home Plus",
       "price": 70,
       "mhDiscount": 15,
-      "autopay": 10
+      "autopay": 10,
+      "allowedPerkIds": [
+        "perk-disney-bundle",
+        "perk-netflix-hbo-max",
+        "perk-4k-video-streaming",
+        "perk-apple-one-individual",
+        "perk-apple-one-family",
+        "perk-apple-music-family",
+        "perk-youtube-premium",
+        "perk-google-ai-pro",
+        "perk-verizon-family-plus",
+        "perk-3-travelpass-days",
+        "perk-fox-one"
+      ]
     },
     {
       "name": "5G Home Ultimate",
       "price": 85,
       "mhDiscount": 15,
-      "autopay": 10
+      "autopay": 10,
+      "allowedPerkIds": [
+        "perk-disney-bundle",
+        "perk-netflix-hbo-max",
+        "perk-4k-video-streaming",
+        "perk-apple-one-individual",
+        "perk-apple-one-family",
+        "perk-apple-music-family",
+        "perk-youtube-premium",
+        "perk-google-ai-pro",
+        "perk-verizon-family-plus",
+        "perk-3-travelpass-days",
+        "perk-fox-one"
+      ]
     },
     {
       "name": "VHI Lite",
       "price": 60,
       "mhDiscount": 15,
-      "autopay": 10
+      "autopay": 10,
+      "allowedPerkIds": [
+        "perk-disney-bundle",
+        "perk-netflix-hbo-max",
+        "perk-4k-video-streaming",
+        "perk-apple-one-individual",
+        "perk-apple-one-family",
+        "perk-apple-music-family",
+        "perk-youtube-premium",
+        "perk-google-ai-pro",
+        "perk-verizon-family-plus",
+        "perk-3-travelpass-days",
+        "perk-fox-one"
+      ]
     },
     {
       "name": "Custom",
@@ -685,79 +837,106 @@
   ],
   "perks": [
     {
-      "name": "Disney Bundle",
-      "cost": 10,
-      "savings": 9.99
+      "name": "Simplicity Plus",
+      "cost": 35,
+      "savings": 0,
+      "id": "perk-1781802882227-xs5nj"
     },
     {
-      "name": "Netflix & HBO Max",
-      "cost": 13,
-      "savings": 6.99
+      "name": "Simplicity Pro",
+      "cost": 50,
+      "savings": 0,
+      "id": "perk-1781802897311-hrv27"
     },
     {
+      "id": "perk-100gb-hotspot",
       "name": "100GB Hotspot",
       "cost": 10,
       "savings": 30
     },
     {
+      "id": "perk-unlimited-hotspot",
       "name": "Unlimited Hotspot",
       "cost": 20,
       "savings": 0
     },
     {
+      "id": "perk-4k-video-streaming",
       "name": "4K Video Streaming",
       "cost": 10,
       "savings": 0
     },
     {
+      "id": "perk-disney-bundle",
+      "name": "Disney Bundle",
+      "cost": 10,
+      "savings": 9.99
+    },
+    {
+      "id": "perk-netflix-hbo-max",
+      "name": "Netflix & HBO Max",
+      "cost": 13,
+      "savings": 6.99
+    },
+    {
+      "id": "perk-apple-one-individual",
       "name": "Apple One Individual",
       "cost": 15,
       "savings": 4.95
     },
     {
+      "id": "perk-apple-one-family",
       "name": "Apple One Family",
       "cost": 20,
       "savings": 5.95
     },
     {
+      "id": "perk-apple-music-family",
       "name": "Apple Music Family",
       "cost": 10,
       "savings": 6.99
     },
     {
+      "id": "perk-youtube-premium",
       "name": "YouTube Premium",
-      "cost": 10,
+      "cost": 12,
       "savings": 3.99
     },
     {
+      "id": "perk-google-ai-pro",
       "name": "Google AI Pro",
       "cost": 10,
       "savings": 9.99
     },
     {
+      "id": "perk-fox-one",
+      "name": "Fox One",
+      "cost": 15,
+      "savings": 4.99
+    },
+    {
+      "id": "perk-unlimited-cloud-storage",
       "name": "Unlimited Cloud Storage",
       "cost": 10,
       "savings": 3.99
     },
     {
+      "id": "perk-verizon-family-plus",
       "name": "Verizon Family Plus",
       "cost": 10,
       "savings": 4.99
     },
     {
+      "id": "perk-second-number",
       "name": "Second Number",
       "cost": 10,
       "savings": 5
     },
     {
+      "id": "perk-3-travelpass-days",
       "name": "3 TravelPass Days",
       "cost": 10,
       "savings": 26
-    },
-    {
-      "name": "Fox One",
-      "cost": 15,
-      "savings": 4.99
     }
   ],
   "quoteSettings": {

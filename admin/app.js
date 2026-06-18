@@ -40,11 +40,17 @@
     let deviceManufacturerFilter = 'All';
     let pendingDelete = null;
     let draggedItem = null;
+    let addOnPlanEditor = null;
 
     const editor = document.getElementById('editor');
     const statusText = document.getElementById('statusText');
 
     const clone = (value) => JSON.parse(JSON.stringify(value));
+    const slugId = (value, fallback = 'item') => String(value || fallback)
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-|-$/g, '') || fallback;
     const money = (value) => Number(value || 0).toFixed(2);
     const numberValue = (value) => {
         const cleaned = String(value).replace(/[^0-9.-]/g, '');
@@ -63,6 +69,8 @@
         config.profiles.smb = config.profiles.smb || createEmptySmbProfile();
         ensureLineTypeConfig(config);
         Object.values(config.profiles || {}).forEach(profile => ensureLineTypeConfig(profile));
+        ensurePerkIds(config);
+        Object.values(config.profiles || {}).forEach(profile => ensurePerkIds(profile));
         setStatus('Loaded pricing.json');
         render();
     };
@@ -164,6 +172,28 @@
         return target.lineTypes;
     };
 
+    const ensurePerkIds = (target = currentConfig()) => {
+        target.perks = Array.isArray(target.perks) ? target.perks : [];
+        const usedIds = new Set();
+        target.perks.forEach((perk, index) => {
+            let baseId = perk.id || `perk-${slugId(perk.name, `item-${index + 1}`)}`;
+            let uniqueId = baseId;
+            let suffix = 2;
+            while (usedIds.has(uniqueId)) {
+                uniqueId = `${baseId}-${suffix}`;
+                suffix += 1;
+            }
+            perk.id = uniqueId;
+            usedIds.add(uniqueId);
+        });
+        return target.perks;
+    };
+
+    const createEmptyPerk = () => ({
+        ...clone(EMPTY_PERK),
+        id: `perk-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
+    });
+
     const getLineTypes = () => ensureLineTypeConfig();
 
     const getPlanSections = () => (
@@ -197,7 +227,7 @@
         watchPlans: [clone(EMPTY_PLANS.watchPlans)],
         homeInternetPlans: [clone(EMPTY_PLANS.homeInternetPlans)],
         oneTalkPlans: [clone(EMPTY_PLANS.flat)],
-        perks: [clone(EMPTY_PERK)],
+        perks: [createEmptyPerk()],
         quoteSettings: {
             financingMonths: 36,
             financingOptions: [12, 24, 36, 48],
@@ -235,6 +265,55 @@
     const hideDeleteConfirm = () => {
         pendingDelete = null;
         document.getElementById('confirmDialog').classList.add('hidden');
+    };
+
+    const hideAddOnPlanEditor = () => {
+        addOnPlanEditor = null;
+        document.getElementById('addOnPlanDialog').classList.add('hidden');
+    };
+
+    const renderAddOnPlanEditor = () => {
+        if (!addOnPlanEditor) return;
+        const perks = ensurePerkIds();
+        const selectedIds = addOnPlanEditor.selectedIds;
+        const allSelected = perks.length > 0 && selectedIds.size === perks.length;
+        const someSelected = selectedIds.size > 0 && !allSelected;
+        const selectAll = document.getElementById('addOnPlanSelectAll');
+        const list = document.getElementById('addOnPlanList');
+        const summary = document.getElementById('addOnPlanSummary');
+
+        document.getElementById('addOnPlanTitle').textContent = `${addOnPlanEditor.planName} ${currentConfig().addOnLabel || 'Perks'}`;
+        selectAll.checked = allSelected;
+        selectAll.indeterminate = someSelected;
+        summary.textContent = `${selectedIds.size} of ${perks.length} selected`;
+        list.innerHTML = perks.length > 0
+            ? perks.map(perk => `
+                <label class="add-on-option">
+                    <input type="checkbox" data-add-on-id="${escapeHtml(perk.id)}" ${selectedIds.has(perk.id) ? 'checked' : ''}>
+                    <span>${escapeHtml(perk.name)}</span>
+                </label>
+            `).join('')
+            : '<p class="muted">No add-ons exist for this segment yet.</p>';
+    };
+
+    const showAddOnPlanEditor = (index) => {
+        const plan = currentConfig()[planSection]?.[index];
+        if (!plan) return;
+        const perks = ensurePerkIds();
+        const selectedIds = new Set(
+            Array.isArray(plan.allowedPerkIds)
+                ? plan.allowedPerkIds
+                : perks.map(perk => perk.id)
+        );
+        addOnPlanEditor = {
+            profileKey: activeProfileKey,
+            planSection,
+            planIndex: index,
+            planName: plan.name,
+            selectedIds
+        };
+        document.getElementById('addOnPlanDialog').classList.remove('hidden');
+        renderAddOnPlanEditor();
     };
 
     const escapeHtml = (value) => String(value ?? '')
@@ -450,7 +529,10 @@
                     ${numberField('Discount slots', `${planSection}.${index}.discountSlots`, plan.discountSlots)}
                     ${legacyCheckbox(`${planSection}.${index}.legacy`, plan.legacy)}
                 </div>
-                <div class="row-tools">${trashButton('remove-plan', index)}</div>
+                <div class="row-tools">
+                    <button type="button" class="small" data-action="edit-plan-add-ons" data-index="${index}">Add-ons</button>
+                    ${trashButton('remove-plan', index)}
+                </div>
             </div>`;
         }
 
@@ -461,7 +543,10 @@
                 ${activeType?.mobileHomeDiscountEligible ? moneyField(bundleDiscountLabel(), `${planSection}.${index}.mhDiscount`, plan.mhDiscount) : ''}
                 ${legacyCheckbox(`${planSection}.${index}.legacy`, plan.legacy)}
             </div>
-            <div class="row-tools">${trashButton('remove-plan', index)}</div>
+            <div class="row-tools">
+                <button type="button" class="small" data-action="edit-plan-add-ons" data-index="${index}">Add-ons</button>
+                ${trashButton('remove-plan', index)}
+            </div>
         </div>`;
     };
 
@@ -763,6 +848,9 @@
             markDirty();
             render();
         }
+        if (action === 'edit-plan-add-ons') {
+            showAddOnPlanEditor(index);
+        }
         if (action === 'remove-plan') {
             showDeleteConfirm(() => {
                 currentConfig()[planSection].splice(index, 1);
@@ -771,13 +859,20 @@
             });
         }
         if (action === 'add-perk') {
-            currentConfig().perks.push(clone(EMPTY_PERK));
+            currentConfig().perks.push(createEmptyPerk());
             markDirty();
             render();
         }
         if (action === 'remove-perk') {
             showDeleteConfirm(() => {
-                currentConfig().perks.splice(index, 1);
+                const [removedPerk] = currentConfig().perks.splice(index, 1);
+                getPlanSections().forEach(([key]) => {
+                    (currentConfig()[key] || []).forEach(plan => {
+                        if (Array.isArray(plan.allowedPerkIds)) {
+                            plan.allowedPerkIds = plan.allowedPerkIds.filter(id => id !== removedPerk.id);
+                        }
+                    });
+                });
                 markDirty();
                 render();
             });
@@ -886,6 +981,40 @@
     document.getElementById('confirmDeleteBtn').addEventListener('click', () => {
         if (pendingDelete) pendingDelete();
         hideDeleteConfirm();
+    });
+
+    document.getElementById('addOnPlanCancelBtn').addEventListener('click', hideAddOnPlanEditor);
+    document.getElementById('addOnPlanDialog').addEventListener('click', (event) => {
+        if (event.target.id === 'addOnPlanDialog') hideAddOnPlanEditor();
+    });
+    document.getElementById('addOnPlanList').addEventListener('change', (event) => {
+        const checkbox = event.target.closest('[data-add-on-id]');
+        if (!checkbox || !addOnPlanEditor) return;
+        if (checkbox.checked) addOnPlanEditor.selectedIds.add(checkbox.dataset.addOnId);
+        else addOnPlanEditor.selectedIds.delete(checkbox.dataset.addOnId);
+        renderAddOnPlanEditor();
+    });
+    document.getElementById('addOnPlanSelectAll').addEventListener('change', (event) => {
+        if (!addOnPlanEditor) return;
+        const perkIds = ensurePerkIds().map(perk => perk.id);
+        addOnPlanEditor.selectedIds = event.target.checked ? new Set(perkIds) : new Set();
+        renderAddOnPlanEditor();
+    });
+    document.getElementById('addOnPlanApplyBtn').addEventListener('click', () => {
+        if (!addOnPlanEditor) return;
+        const target = addOnPlanEditor.profileKey === 'consumer' ? config : config.profiles[addOnPlanEditor.profileKey];
+        const plan = target[addOnPlanEditor.planSection]?.[addOnPlanEditor.planIndex];
+        if (!plan) {
+            hideAddOnPlanEditor();
+            return;
+        }
+        const allPerkIds = ensurePerkIds(target).map(perk => perk.id);
+        const selectedIds = allPerkIds.filter(id => addOnPlanEditor.selectedIds.has(id));
+        if (selectedIds.length === allPerkIds.length) delete plan.allowedPerkIds;
+        else plan.allowedPerkIds = selectedIds;
+        markDirty();
+        hideAddOnPlanEditor();
+        render();
     });
 
     const setValueForPath = (path) => {
