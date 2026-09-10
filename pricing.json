@@ -46,6 +46,24 @@
       "price": 610
     },
     {
+      "id": "apple-iphone-18-pro-256gb",
+      "enabled": true,
+      "type": "Smartphone",
+      "manufacturer": "Apple",
+      "model": "iPhone 18 Pro",
+      "storage": "256GB",
+      "price": 1200
+    },
+    {
+      "id": "apple-iphone-18-pro-max-256gb",
+      "enabled": true,
+      "type": "Smartphone",
+      "manufacturer": "Apple",
+      "model": "iPhone 18 Pro Max",
+      "storage": "256GB",
+      "price": 1300
+    },
+    {
       "id": "apple-iphone-air-256gb",
       "enabled": true,
       "type": "Smartphone",
@@ -837,6 +855,12 @@
   ],
   "perks": [
     {
+      "name": "Verizon All-In-One Protection",
+      "cost": 35,
+      "savings": 9,
+      "id": "perk-1789062425591-3mc7o"
+    },
+    {
       "name": "Simplicity Plus",
       "cost": 35,
       "savings": 0,
@@ -1054,7 +1078,7 @@
   "byodPlans": [
     {
       "name": "BYOD+",
-      "price": 5,
+      "price": 10,
       "autopay": 0,
       "mhDiscount": 0
     }
