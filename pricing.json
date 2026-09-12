@@ -154,15 +154,6 @@
       "price": 1299.99
     },
     {
-      "id": "google-pixel-watch-5",
-      "enabled": true,
-      "type": "Smartphone",
-      "manufacturer": "Google",
-      "model": "Pixel Watch 5",
-      "storage": "",
-      "price": 499.99
-    },
-    {
       "id": "samsung-galaxy-a37-128gb",
       "enabled": true,
       "type": "Smartphone",
@@ -287,6 +278,15 @@
       "model": "Apple Watch Ultra 4",
       "storage": "",
       "price": 799.99
+    },
+    {
+      "id": "google-pixel-watch-5",
+      "enabled": true,
+      "type": "Watch",
+      "manufacturer": "Google",
+      "model": "Pixel Watch 5",
+      "storage": "",
+      "price": 499.99
     },
     {
       "id": "samsung-galaxy-watch-8",
