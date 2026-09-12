@@ -7,7 +7,7 @@
       "manufacturer": "Apple",
       "model": "iPhone 16",
       "storage": "128GB",
-      "price": 730
+      "price": 839.99
     },
     {
       "id": "apple-iphone-17-256gb",
@@ -16,7 +16,7 @@
       "manufacturer": "Apple",
       "model": "iPhone 17",
       "storage": "256GB",
-      "price": 830
+      "price": 929.99
     },
     {
       "id": "apple-iphone-17-pro-256gb",
@@ -25,7 +25,7 @@
       "manufacturer": "Apple",
       "model": "iPhone 17 Pro",
       "storage": "256GB",
-      "price": 1100
+      "price": 1099.99
     },
     {
       "id": "apple-iphone-17-pro-max-256gb",
@@ -34,7 +34,7 @@
       "manufacturer": "Apple",
       "model": "iPhone 17 Pro Max",
       "storage": "256GB",
-      "price": 1200
+      "price": 1209.99
     },
     {
       "id": "apple-iphone-17e-256gb",
@@ -43,7 +43,7 @@
       "manufacturer": "Apple",
       "model": "iPhone 17e",
       "storage": "256GB",
-      "price": 610
+      "price": 709.99
     },
     {
       "id": "apple-iphone-18-pro-256gb",
@@ -52,7 +52,7 @@
       "manufacturer": "Apple",
       "model": "iPhone 18 Pro",
       "storage": "256GB",
-      "price": 1200
+      "price": 1209.99
     },
     {
       "id": "apple-iphone-18-pro-max-256gb",
@@ -61,7 +61,7 @@
       "manufacturer": "Apple",
       "model": "iPhone 18 Pro Max",
       "storage": "256GB",
-      "price": 1300
+      "price": 1309.99
     },
     {
       "id": "apple-iphone-air-256gb",
@@ -70,11 +70,20 @@
       "manufacturer": "Apple",
       "model": "iPhone Air",
       "storage": "256GB",
-      "price": 1000
+      "price": 1109.99
+    },
+    {
+      "id": "apple-iphone-duo-256gb",
+      "enabled": true,
+      "type": "Smartphone",
+      "manufacturer": "Apple",
+      "model": "iPhone Duo",
+      "storage": "256GB",
+      "price": 2009.99
     },
     {
       "id": "google-pixel-10-128gb",
-      "enabled": true,
+      "enabled": false,
       "type": "Smartphone",
       "manufacturer": "Google",
       "model": "Pixel 10",
@@ -83,7 +92,7 @@
     },
     {
       "id": "google-pixel-10-pro-256gb",
-      "enabled": true,
+      "enabled": false,
       "type": "Smartphone",
       "manufacturer": "Google",
       "model": "Pixel 10 Pro",
@@ -92,7 +101,7 @@
     },
     {
       "id": "google-pixel-10-pro-xl-256gb",
-      "enabled": true,
+      "enabled": false,
       "type": "Smartphone",
       "manufacturer": "Google",
       "model": "Pixel 10 Pro XL",
@@ -109,13 +118,67 @@
       "price": 522
     },
     {
+      "id": "google-pixel-11-256gb",
+      "enabled": true,
+      "type": "Smartphone",
+      "manufacturer": "Google",
+      "model": "Pixel 11",
+      "storage": "256GB",
+      "price": 904.99
+    },
+    {
+      "id": "google-pixel-11-pro-256gb",
+      "enabled": true,
+      "type": "Smartphone",
+      "manufacturer": "Google",
+      "model": "Pixel 11 Pro",
+      "storage": "256GB",
+      "price": 1099.99
+    },
+    {
+      "id": "google-pixel-11-pro-fold-256gb",
+      "enabled": true,
+      "type": "Smartphone",
+      "manufacturer": "Google",
+      "model": "Pixel 11 Pro Fold",
+      "storage": "256GB",
+      "price": 1899.99
+    },
+    {
+      "id": "google-pixel-11-pro-xl-256gb",
+      "enabled": true,
+      "type": "Smartphone",
+      "manufacturer": "Google",
+      "model": "Pixel 11 Pro XL",
+      "storage": "256GB",
+      "price": 1299.99
+    },
+    {
+      "id": "google-pixel-watch-5",
+      "enabled": true,
+      "type": "Smartphone",
+      "manufacturer": "Google",
+      "model": "Pixel Watch 5",
+      "storage": "",
+      "price": 499.99
+    },
+    {
+      "id": "samsung-galaxy-a37-128gb",
+      "enabled": true,
+      "type": "Smartphone",
+      "manufacturer": "Samsung",
+      "model": "Galaxy A37",
+      "storage": "128GB",
+      "price": 476.99
+    },
+    {
       "id": "samsung-galaxy-s25-fe-128gb",
       "enabled": true,
       "type": "Smartphone",
       "manufacturer": "Samsung",
       "model": "Galaxy S25 FE",
       "storage": "128GB",
-      "price": 650
+      "price": 649.99
     },
     {
       "id": "samsung-galaxy-s26-256gb",
@@ -124,7 +187,7 @@
       "manufacturer": "Samsung",
       "model": "Galaxy S26",
       "storage": "256GB",
-      "price": 900
+      "price": 899.99
     },
     {
       "id": "samsung-galaxy-s26-ultra-256gb",
@@ -133,7 +196,7 @@
       "manufacturer": "Samsung",
       "model": "Galaxy S26 Ultra",
       "storage": "256GB",
-      "price": 1300
+      "price": 1299.99
     },
     {
       "id": "samsung-galaxy-s26-256gb",
@@ -142,7 +205,34 @@
       "manufacturer": "Samsung",
       "model": "Galaxy S26+",
       "storage": "256GB",
-      "price": 1100
+      "price": 1105.99
+    },
+    {
+      "id": "samsung-galaxy-z-flip8-256gb",
+      "enabled": true,
+      "type": "Smartphone",
+      "manufacturer": "Samsung",
+      "model": "Galaxy Z Flip8",
+      "storage": "256GB",
+      "price": 1201.99
+    },
+    {
+      "id": "samsung-galaxy-z-fold8-256gb",
+      "enabled": true,
+      "type": "Smartphone",
+      "manufacturer": "Samsung",
+      "model": "Galaxy Z Fold8",
+      "storage": "256GB",
+      "price": 1899.99
+    },
+    {
+      "id": "samsung-galaxy-z-fold8-ultra-256gb",
+      "enabled": true,
+      "type": "Smartphone",
+      "manufacturer": "Samsung",
+      "model": "Galaxy Z Fold8 Ultra",
+      "storage": "256GB",
+      "price": 2099.99
     },
     {
       "id": "apple-ipad-a16-128gb",
@@ -151,16 +241,25 @@
       "manufacturer": "Apple",
       "model": "iPad A16",
       "storage": "128GB",
-      "price": 500
+      "price": 609.99
     },
     {
-      "id": "samsung-galaxy-tab-s10-fe",
+      "id": "samsung-galaxy-tab-s10-fe-128gb",
       "enabled": true,
       "type": "Tablet",
       "manufacturer": "Samsung",
       "model": "Galaxy Tab S10 FE",
+      "storage": "128GB",
+      "price": 649.99
+    },
+    {
+      "id": "apple-apple-watch-se-3",
+      "enabled": true,
+      "type": "Watch",
+      "manufacturer": "Apple",
+      "model": "Apple Watch SE 3",
       "storage": "",
-      "price": 599.99
+      "price": 300
     },
     {
       "id": "apple-apple-watch-series-11",
@@ -172,13 +271,40 @@
       "price": 500
     },
     {
-      "id": "samsung-galaxy-watch-8",
+      "id": "apple-apple-watch-series-12",
       "enabled": true,
+      "type": "Watch",
+      "manufacturer": "Apple",
+      "model": "Apple Watch Series 12",
+      "storage": "",
+      "price": 500
+    },
+    {
+      "id": "apple-apple-watch-ultra-4",
+      "enabled": true,
+      "type": "Watch",
+      "manufacturer": "Apple",
+      "model": "Apple Watch Ultra 4",
+      "storage": "",
+      "price": 799.99
+    },
+    {
+      "id": "samsung-galaxy-watch-8",
+      "enabled": false,
       "type": "Watch",
       "manufacturer": "Samsung",
       "model": "Galaxy Watch 8",
       "storage": "",
       "price": 422
+    },
+    {
+      "id": "samsung-galaxy-watch-9",
+      "enabled": true,
+      "type": "Watch",
+      "manufacturer": "Samsung",
+      "model": "Galaxy Watch 9",
+      "storage": "",
+      "price": 449.99
     },
     {
       "id": "skyus-dragon-router",
@@ -226,7 +352,8 @@
             50
           ],
           "autopay": 0,
-          "discountSlots": 0
+          "discountSlots": 0,
+          "allowedPerkIds": []
         },
         {
           "name": "BYOD Business",
@@ -238,7 +365,8 @@
             30
           ],
           "autopay": 0,
-          "discountSlots": 0
+          "discountSlots": 0,
+          "allowedPerkIds": []
         },
         {
           "name": "Custom",
@@ -577,19 +705,14 @@
         55
       ],
       "autopay": 10,
-      "discountSlots": 1
-    },
-    {
-      "name": "Unlimited Welcome",
-      "costs": [
-        75,
-        65,
-        50,
-        40
-      ],
-      "autopay": 10,
+      "discountSlots": 1,
       "allowedPerkIds": [
+        "perk-1789062425591-3mc7o",
+        "perk-1781802882227-xs5nj",
+        "perk-1781802897311-hrv27",
         "perk-100gb-hotspot",
+        "perk-unlimited-hotspot",
+        "perk-4k-video-streaming",
         "perk-disney-bundle",
         "perk-netflix-hbo-max",
         "perk-apple-one-individual",
@@ -605,6 +728,33 @@
       ]
     },
     {
+      "name": "Unlimited Welcome",
+      "costs": [
+        75,
+        65,
+        50,
+        40
+      ],
+      "autopay": 10,
+      "allowedPerkIds": [
+        "perk-1789221656196-x3zli",
+        "perk-100gb-hotspot",
+        "perk-disney-bundle",
+        "perk-netflix-hbo-max",
+        "perk-apple-one-individual",
+        "perk-apple-one-family",
+        "perk-apple-music-family",
+        "perk-youtube-premium",
+        "perk-google-ai-pro",
+        "perk-fox-one",
+        "perk-unlimited-cloud-storage",
+        "perk-verizon-family-plus",
+        "perk-second-number",
+        "perk-3-travelpass-days",
+        "perk-1789221863162-6y55b"
+      ]
+    },
+    {
       "name": "Unlimited Plus",
       "costs": [
         90,
@@ -615,19 +765,20 @@
       "autopay": 10,
       "discountSlots": 1,
       "allowedPerkIds": [
+        "perk-100gb-hotspot",
         "perk-disney-bundle",
         "perk-netflix-hbo-max",
-        "perk-100gb-hotspot",
         "perk-apple-one-individual",
         "perk-apple-one-family",
         "perk-apple-music-family",
         "perk-youtube-premium",
         "perk-google-ai-pro",
+        "perk-fox-one",
         "perk-unlimited-cloud-storage",
         "perk-verizon-family-plus",
         "perk-second-number",
         "perk-3-travelpass-days",
-        "perk-fox-one"
+        "perk-1789221863162-6y55b"
       ]
     },
     {
@@ -642,19 +793,20 @@
       "discountSlots": 2,
       "legacy": true,
       "allowedPerkIds": [
+        "perk-100gb-hotspot",
         "perk-disney-bundle",
         "perk-netflix-hbo-max",
-        "perk-100gb-hotspot",
         "perk-apple-one-individual",
         "perk-apple-one-family",
         "perk-apple-music-family",
         "perk-youtube-premium",
         "perk-google-ai-pro",
+        "perk-fox-one",
         "perk-unlimited-cloud-storage",
         "perk-verizon-family-plus",
         "perk-second-number",
         "perk-3-travelpass-days",
-        "perk-fox-one"
+        "perk-1789221863162-6y55b"
       ]
     },
     {
@@ -668,19 +820,20 @@
       "autopay": 10,
       "discountSlots": 2,
       "allowedPerkIds": [
+        "perk-100gb-hotspot",
         "perk-disney-bundle",
         "perk-netflix-hbo-max",
-        "perk-100gb-hotspot",
         "perk-apple-one-individual",
         "perk-apple-one-family",
         "perk-apple-music-family",
         "perk-youtube-premium",
         "perk-google-ai-pro",
+        "perk-fox-one",
         "perk-unlimited-cloud-storage",
         "perk-verizon-family-plus",
         "perk-second-number",
         "perk-3-travelpass-days",
-        "perk-fox-one"
+        "perk-1789221863162-6y55b"
       ]
     },
     {
@@ -795,17 +948,17 @@
       "mhDiscount": 15,
       "autopay": 10,
       "allowedPerkIds": [
+        "perk-4k-video-streaming",
         "perk-disney-bundle",
         "perk-netflix-hbo-max",
-        "perk-4k-video-streaming",
         "perk-apple-one-individual",
         "perk-apple-one-family",
         "perk-apple-music-family",
         "perk-youtube-premium",
         "perk-google-ai-pro",
+        "perk-fox-one",
         "perk-verizon-family-plus",
-        "perk-3-travelpass-days",
-        "perk-fox-one"
+        "perk-3-travelpass-days"
       ]
     },
     {
@@ -873,6 +1026,12 @@
       "id": "perk-1781802897311-hrv27"
     },
     {
+      "name": "5G Ultra Wideband",
+      "cost": 10,
+      "savings": 0,
+      "id": "perk-1789221656196-x3zli"
+    },
+    {
       "id": "perk-100gb-hotspot",
       "name": "100GB Hotspot",
       "cost": 10,
@@ -906,18 +1065,18 @@
       "id": "perk-apple-one-individual",
       "name": "Apple One Individual",
       "cost": 15,
-      "savings": 4.95
+      "savings": 6.95
     },
     {
       "id": "perk-apple-one-family",
       "name": "Apple One Family",
-      "cost": 20,
-      "savings": 5.95
+      "cost": 23,
+      "savings": 4.95
     },
     {
       "id": "perk-apple-music-family",
       "name": "Apple Music Family",
-      "cost": 10,
+      "cost": 13,
       "savings": 6.99
     },
     {
@@ -961,6 +1120,12 @@
       "name": "3 TravelPass Days",
       "cost": 10,
       "savings": 26
+    },
+    {
+      "name": "Flex Upgrade",
+      "cost": 10,
+      "savings": 0,
+      "id": "perk-1789221863162-6y55b"
     }
   ],
   "quoteSettings": {
