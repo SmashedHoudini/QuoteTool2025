@@ -160,16 +160,16 @@
       "manufacturer": "Samsung",
       "model": "Galaxy A37",
       "storage": "128GB",
-      "price": 476.99
+      "price": 514.99
     },
     {
       "id": "samsung-galaxy-s25-fe-128gb",
-      "enabled": true,
+      "enabled": false,
       "type": "Smartphone",
       "manufacturer": "Samsung",
       "model": "Galaxy S25 FE",
       "storage": "128GB",
-      "price": 649.99
+      "price": 670.99
     },
     {
       "id": "samsung-galaxy-s26-256gb",
@@ -178,7 +178,16 @@
       "manufacturer": "Samsung",
       "model": "Galaxy S26",
       "storage": "256GB",
-      "price": 899.99
+      "price": 1004.99
+    },
+    {
+      "id": "samsung-galaxy-s26-fe-128gb",
+      "enabled": true,
+      "type": "Smartphone",
+      "manufacturer": "Samsung",
+      "model": "Galaxy S26 FE",
+      "storage": "128GB",
+      "price": 714.99
     },
     {
       "id": "samsung-galaxy-s26-ultra-256gb",
@@ -187,7 +196,7 @@
       "manufacturer": "Samsung",
       "model": "Galaxy S26 Ultra",
       "storage": "256GB",
-      "price": 1299.99
+      "price": 1399.99
     },
     {
       "id": "samsung-galaxy-s26-256gb",
@@ -196,7 +205,7 @@
       "manufacturer": "Samsung",
       "model": "Galaxy S26+",
       "storage": "256GB",
-      "price": 1105.99
+      "price": 1199.99
     },
     {
       "id": "samsung-galaxy-z-flip8-256gb",
@@ -215,6 +224,15 @@
       "model": "Galaxy Z Fold8",
       "storage": "256GB",
       "price": 1899.99
+    },
+    {
+      "id": "samsung-galaxy-z-fold8-512gb",
+      "enabled": true,
+      "type": "Smartphone",
+      "manufacturer": "Samsung",
+      "model": "Galaxy Z Fold8",
+      "storage": "512GB",
+      "price": 2099.99
     },
     {
       "id": "samsung-galaxy-z-fold8-ultra-256gb",
@@ -854,6 +872,12 @@
       "allowedPerkIds": []
     },
     {
+      "name": "Unlimited Tablet",
+      "price": 25,
+      "legacy": true,
+      "allowedPerkIds": []
+    },
+    {
       "name": "Unlimited",
       "price": 40,
       "allowedPerkIds": []
@@ -1052,7 +1076,7 @@
     {
       "id": "perk-disney-bundle",
       "name": "Disney Bundle",
-      "cost": 10,
+      "cost": 12,
       "savings": 9.99
     },
     {
