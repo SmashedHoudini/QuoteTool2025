@@ -1088,8 +1088,8 @@
     {
       "id": "perk-apple-one-individual",
       "name": "Apple One Individual",
-      "cost": 15,
-      "savings": 6.95
+      "cost": 17,
+      "savings": 4.95
     },
     {
       "id": "perk-apple-one-family",
@@ -1267,7 +1267,7 @@
   "byodPlans": [
     {
       "name": "BYOD+",
-      "price": 10,
+      "price": 5,
       "autopay": 0,
       "mhDiscount": 0
     }
