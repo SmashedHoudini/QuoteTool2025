@@ -897,7 +897,7 @@ const App = ({ config }) => {
     const activeQuoteSet = saveDraftInQuoteSet(quoteProfileKey, createCurrentQuoteDraft());
     const canAddQuote = activeQuoteSet.quotes.length < MAX_QUOTES_PER_PROFILE;
     return (
-        <div className="min-h-screen">
+        <div className="quote-app min-h-screen" data-view={view}>
             {/* Only show nav on quote views. Print preview and standalone tools handle their own navigation. */}
             {view !== 'print' && view !== 'vmp' && (
                 <nav className="sticky top-0 z-50 px-4 md:px-6 py-4 border-b border-black/10 flex justify-between items-center bg-stone-100/80 backdrop-blur-md text-black">

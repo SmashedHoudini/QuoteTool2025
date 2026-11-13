@@ -79,6 +79,17 @@
         }
 
         /*
+            Compact tablet controls and spacing without changing phone/desktop
+            layouts. any-pointer also covers iPads with a trackpad attached.
+            Keep the normal rem scale for print preview and PDF capture.
+        */
+        @media screen and (any-pointer: coarse) and (min-width: 768px) and (max-width: 1366px) and (min-height: 600px) {
+            html:has(.quote-app:not([data-view="print"])) {
+                font-size: 87.5%;
+            }
+        }
+
+        /*
             iPad Safari can report a desktop-ish viewport in portrait. Keep
             portrait tablets on the clean medium layout instead of the wide
             desktop row layout.
@@ -133,6 +144,6 @@
     <script src="pagination.js?v=20260501-1"></script>
     <script src="pdf.js?v=20260501-1"></script>
     <script type="text/babel" src="vmpCalculator.js?v=20260502-1"></script>
-    <script type="text/babel" src="app.js?v=20261113-5"></script>
+    <script type="text/babel" src="app.js?v=20261113-6"></script>
 </body>
 </html>
