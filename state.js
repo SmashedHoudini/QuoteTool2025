@@ -76,6 +76,7 @@
         id: createId(),
         label: '',
         amount: '',
+        amountMode: 'amount',
         type: 'credit'
     });
 

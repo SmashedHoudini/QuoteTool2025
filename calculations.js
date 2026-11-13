@@ -199,8 +199,15 @@
         return item;
     };
 
+    const resolveAdjustments = (adjustments, planPrice) => adjustments.map(adjustment => ({
+        ...adjustment,
+        calculatedAmount: adjustment.amountMode === 'percentage'
+            ? Math.round((Math.max(0, planPrice) * parseAmount(adjustment.amount) / 100 + Number.EPSILON) * 100) / 100
+            : parseAmount(adjustment.amount)
+    }));
+
     const sumAdjustments = (adjustments) => adjustments.reduce((acc, adjustment) => {
-        const amount = parseAmount(adjustment.amount);
+        const amount = adjustment.calculatedAmount;
         return acc + (adjustment.type === 'credit' ? -amount : amount);
     }, 0);
 
@@ -209,7 +216,8 @@
         return parseAmount(taxSettings[line.type]);
     };
 
-    const calculateQuote = ({ lines, multiDeviceProtection, accountAdjustments, oneTimeCredits, includeEstimatedTaxes }, config) => {
+    const calculateQuote = (state, config, { includeAutopay = true } = {}) => {
+        const { lines, multiDeviceProtection, accountAdjustments, oneTimeCredits, includeEstimatedTaxes } = state;
         const PERKS = config.perks;
         const lineTypes = getLineTypes(config);
         const settings = config.quoteSettings;
@@ -269,10 +277,10 @@
             if (line.autoPayOverride !== undefined && line.autoPayOverride !== null && String(line.autoPayOverride).trim() !== '') {
                 autopaySaving = parseAmount(line.autoPayOverride);
             }
+            if (!includeAutopay) autopaySaving = 0;
 
             const perkCost = line.perks.reduce((acc, name) => acc + findByName(PERKS, name, 'perks').cost, 0);
             const perkSavings = line.perks.reduce((acc, name) => acc + findByName(PERKS, name, 'perks').savings, 0);
-            const adjSum = sumAdjustments(line.adjustments);
 
             let protCost = 0;
             if (!multiDeviceProtection && typeConfig.protectionEligible) {
@@ -300,7 +308,6 @@
                 protCost,
                 deviceMonthly,
                 financingMonths,
-                adjSum,
                 taxSurcharge,
                 monthlyPromoCredit,
                 finalPlan: planBase - autopaySaving - mhSaving
@@ -318,12 +325,21 @@
                 discountedAmt = line.planBase * connectedDeviceDiscountRate;
                 isDiscounted = true;
             }
-            const actualPlanCost = isDiscounted ? (line.planBase - discountedAmt) : line.finalPlan;
+            const actualPlanCost = line.finalPlan - discountedAmt;
+            // Dollar adjustments modify the plan first, regardless of row order.
+            // Line percentages share that base rather than compounding each other.
+            const fixedAdjustments = resolveAdjustments(line.adjustments.filter(adjustment => adjustment.amountMode !== 'percentage'), actualPlanCost);
+            const percentageBase = actualPlanCost + sumAdjustments(fixedAdjustments);
+            const adjustments = resolveAdjustments(line.adjustments, percentageBase);
+            const adjSum = sumAdjustments(adjustments);
             return {
                 ...line,
+                actualPlanCost,
+                adjustments,
+                adjSum,
                 isDiscounted,
                 connectedDiscountAmt: discountedAmt,
-                totalLineCost: actualPlanCost + line.perkCost + line.protCost + line.deviceMonthly + line.adjSum + (includeEstimatedTaxes ? line.taxSurcharge : 0)
+                totalLineCost: actualPlanCost + line.perkCost + line.protCost + line.deviceMonthly + adjSum + (includeEstimatedTaxes ? line.taxSurcharge : 0)
             };
         });
 
@@ -334,7 +350,10 @@
             && (!getLineType(config, line.type).customType || line.customIncludeInVmdp)
         )).length;
         const vmpCost = multiDeviceProtection ? Math.min(protectableLinesCount * multiProtection.perLine, multiProtection.monthlyCap) : 0;
-        const accAdjSum = sumAdjustments(accountAdjustments);
+        // Account percentages follow all line adjustments, still excluding extras.
+        const accountPlanPrice = finalLines.reduce((sum, line) => sum + Math.max(0, line.actualPlanCost + line.adjSum), 0);
+        const processedAccountAdjustments = resolveAdjustments(accountAdjustments, accountPlanPrice);
+        const accAdjSum = sumAdjustments(processedAccountAdjustments);
         const totalEstimatedTaxes = includeEstimatedTaxes
             ? finalLines.reduce((acc, line) => acc + line.taxSurcharge, 0)
             : 0;
@@ -345,8 +364,8 @@
         const totalPerkSavings = finalLines.reduce((acc, line) => acc + line.perkSavings, 0);
         const totalConnectedDiscounts = finalLines.reduce((acc, line) => acc + (line.connectedDiscountAmt || 0), 0);
         const totalMonthlyPromoCredits = finalLines.reduce((acc, line) => acc + line.monthlyPromoCredit, 0);
-        const allAdjustments = [...finalLines.flatMap(line => line.adjustments), ...accountAdjustments];
-        const totalAdjustmentCredits = allAdjustments.reduce((acc, adjustment) => acc + (adjustment.type === 'credit' ? parseAmount(adjustment.amount) : 0), 0);
+        const allAdjustments = [...finalLines.flatMap(line => line.adjustments), ...processedAccountAdjustments];
+        const totalAdjustmentCredits = allAdjustments.reduce((acc, adjustment) => acc + (adjustment.type === 'credit' ? adjustment.calculatedAmount : 0), 0);
         const totalOneTimeCredits = oneTimeCredits.reduce((acc, item) => (
             acc + ((item.type || 'credit') === 'credit' ? parseAmount(item.amount) : 0)
         ), 0);
@@ -355,14 +374,19 @@
         ), 0);
         const totalOneTimeNet = totalOneTimeCharges - totalOneTimeCredits;
         const totalMonthlySavings = totalMonthlyPromoCredits + totalAutopay + totalMHSavings + totalConnectedDiscounts + totalAdjustmentCredits + totalPerkSavings;
+        // Reprice plan percentages too: adding back Auto Pay alone is no longer accurate.
+        const totalWithoutAutopay = includeAutopay
+            ? calculateQuote(state, config, { includeAutopay: false }).total
+            : total;
 
         return {
             processedLines: finalLines,
+            processedAccountAdjustments,
             total,
             vmpCost,
             accAdjSum,
             totalEstimatedTaxes,
-            totalWithoutAutopay: total + totalAutopay,
+            totalWithoutAutopay,
             totalFullDeviceSavings,
             totalMonthlySavings,
             totalAutopay,

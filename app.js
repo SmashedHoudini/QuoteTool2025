@@ -407,11 +407,14 @@ const App = ({ config }) => {
         resetTransientQuoteState();
     };
 
-    const addQuote = () => {
-        const currentSet = saveDraftInQuoteSet(quoteProfileKey, createCurrentQuoteDraft());
+    const addQuote = (copyCurrent = false) => {
+        const currentDraft = createCurrentQuoteDraft();
+        const currentSet = saveDraftInQuoteSet(quoteProfileKey, currentDraft);
         if (currentSet.quotes.length >= MAX_QUOTES_PER_PROFILE) return;
 
-        const newQuote = createQuoteEntry(quoteProfileKey, createFreshQuoteDraft(quoteProfileKey));
+        // A deep copy keeps nested perks/adjustments independent of the source quote.
+        const newDraft = copyCurrent ? structuredClone(currentDraft) : createFreshQuoteDraft(quoteProfileKey);
+        const newQuote = createQuoteEntry(quoteProfileKey, newDraft);
         const nextSet = {
             activeQuoteId: newQuote.id,
             quotes: [...currentSet.quotes, newQuote]
@@ -522,6 +525,7 @@ const App = ({ config }) => {
     const getAdjustmentTemplate = (adjustment) => ({
         label: adjustment.label || '',
         amount: adjustment.amount ?? '',
+        amountMode: adjustment.amountMode || 'amount',
         type: adjustment.type || 'credit'
     });
 
@@ -668,6 +672,11 @@ const App = ({ config }) => {
     );
 
     const formatRoundedDollars = (amount) => `$${Math.round(amount).toLocaleString()}`;
+    const formatAdjustment = (adjustment) => {
+        const amount = adjustment.calculatedAmount ?? (parseFloat(adjustment.amount) || 0);
+        const percentage = adjustment.amountMode === 'percentage' ? ` (${parseFloat(adjustment.amount) || 0}%)` : '';
+        return `${adjustment.type === 'credit' ? '-' : ''}$${amount.toFixed(2)}${percentage}`;
+    };
     const formatDollars = (amount) => {
         const value = parseFloat(amount) || 0;
         const formatted = Math.abs(value).toFixed(2);
@@ -770,6 +779,9 @@ const App = ({ config }) => {
         ? getLineFinancingMonths(activeHardwareLine, activeConfig.quoteSettings)
         : (FINANCING_OPTIONS[0] || FINANCING_MONTHS);
     const activeAdjustmentLine = lines.find(l => l.id === activeAdjLineId);
+    const activeCalculatedAdjustments = showAccountAdj
+        ? calculations.processedAccountAdjustments
+        : calculations.processedLines.find(line => line.id === activeAdjLineId)?.adjustments || [];
     const activePerkLine = lines.find(l => l.id === activePerkLineId);
     const availablePerksForActiveLine = activePerkLine
         ? getAvailablePerksForLine(activeConfig, activePerkLine)
@@ -943,12 +955,23 @@ const App = ({ config }) => {
                         </div>
 
                         <div className="w-full bg-stone-50 border border-black/10 rounded-2xl p-3 space-y-3">
-                            <button onClick={addQuote} disabled={!canAddQuote} className="w-full bg-white border border-black/10 rounded-xl p-3 flex items-center justify-between text-left hover:border-black/20 disabled:opacity-35 disabled:hover:border-black/10 transition-colors">
-                                <div>
-                                    <p className="text-sm font-black">{canAddQuote ? 'Add Quote' : `${MAX_QUOTES_PER_PROFILE} Quote Max`}</p>
-                                </div>
-                                <Icon name="PlusCircle" size={18} className="text-black/40" />
-                            </button>
+                            <div className="flex items-stretch gap-2">
+                                <button onClick={() => addQuote()} disabled={!canAddQuote} className="min-w-0 flex-1 bg-white border border-black/10 rounded-xl p-3 flex items-center justify-between text-left hover:border-black/20 disabled:opacity-35 disabled:hover:border-black/10 transition-colors">
+                                    <div>
+                                        <p className="text-sm font-black">{canAddQuote ? 'Add Quote' : `${MAX_QUOTES_PER_PROFILE} Quote Max`}</p>
+                                    </div>
+                                    <Icon name="PlusCircle" size={18} className="text-black/40" />
+                                </button>
+                                <button
+                                    onClick={() => addQuote(true)}
+                                    disabled={!canAddQuote}
+                                    title="Duplicate selected quote"
+                                    aria-label="Duplicate selected quote"
+                                    className="w-11 shrink-0 bg-white border border-black/10 rounded-xl flex items-center justify-center text-black/40 hover:text-black hover:border-black/20 disabled:opacity-35 disabled:hover:text-black/40 disabled:hover:border-black/10 transition-colors"
+                                >
+                                    <Icon name="Copy" size={18} />
+                                </button>
+                            </div>
 
                             {activeQuoteSet.quotes.length > 1 && (
                                 <div className="space-y-2">
@@ -1180,7 +1203,7 @@ const App = ({ config }) => {
                                                                     {line.isDiscounted && <p className="text-sm text-emerald-600 font-bold">-${line.connectedDiscountAmt.toFixed(2)} Connected Device Discount</p>}
                                                                     {line.devicePrice > 0 && <p className="text-sm font-medium opacity-50">{formatDollars(line.deviceMonthly)} Device Payment ({line.financingMonths} mo)</p>}
                                                                     {line.perks.map(pName => <p key={pName} className="text-sm font-medium opacity-50">${getPerkCost(pName).toFixed(2)} {pName}</p>)}
-                                                                    {line.adjustments.map(adj => <p key={adj.id} className={`text-sm tracking-tight ${adj.type === 'credit' ? 'text-emerald-600 font-bold' : 'opacity-50'}`}>{adj.type === 'credit' ? '-' : ''}${parseFloat(adj.amount || 0).toFixed(2)} {adj.label}</p>)}
+                                                                    {line.adjustments.map(adj => <p key={adj.id} className={`text-sm tracking-tight ${adj.type === 'credit' ? 'text-emerald-600 font-bold' : 'opacity-50'}`}>{formatAdjustment(adj)} {adj.label}</p>)}
                                                                     {line.protCost > 0 && <p className="text-sm font-medium opacity-50">${line.protCost}.00 Device protection</p>}
                                                                     {includeEstimatedTaxes && line.taxSurcharge > 0 && <p className="text-sm font-medium opacity-50">${line.taxSurcharge.toFixed(2)} Est. Taxes & Surcharges</p>}
                                                                 </div>
@@ -1206,7 +1229,7 @@ const App = ({ config }) => {
                                                             {customerViewMode === 'detailed' ? (
                                                                 <div className="mt-3 space-y-1 border-l-2 border-stone-100 pl-4">
                                                                     {multiDeviceProtection && <p className="text-sm font-medium opacity-50">${calculations.vmpCost.toFixed(2)} Multi-Device Protection</p>}
-                                                                    {accountAdjustments.map(adj => <p key={adj.id} className={`text-sm tracking-tight ${adj.type === 'credit' ? 'text-emerald-600 font-bold' : 'opacity-50'}`}>{adj.type === 'credit' ? '-' : ''}${parseFloat(adj.amount || 0).toFixed(2)} {adj.label}</p>)}
+                                                                    {calculations.processedAccountAdjustments.map(adj => <p key={adj.id} className={`text-sm tracking-tight ${adj.type === 'credit' ? 'text-emerald-600 font-bold' : 'opacity-50'}`}>{formatAdjustment(adj)} {adj.label}</p>)}
                                                                 </div>
                                                             ) : <p className="text-xs font-medium opacity-50 mt-1 italic">Protection & Adjustments Applied</p>}
                                                         </div>
@@ -1351,7 +1374,7 @@ const App = ({ config }) => {
                                                                             {line.isDiscounted && <p className="text-xs text-black font-semibold opacity-80">-${line.connectedDiscountAmt.toFixed(2)} Connected Device Discount</p>}
                                                                             {line.devicePrice > 0 && <p className="text-xs font-medium opacity-80">{formatDollars(line.deviceMonthly)} Device Payment ({line.financingMonths} mo)</p>}
                                                                             {line.perks.map(pName => <p key={pName} className="text-xs font-medium opacity-80">${getPerkCost(pName).toFixed(2)} {pName}</p>)}
-                                                                            {line.adjustments.map(adj => <p key={adj.id} className={`text-xs tracking-tight ${adj.type === 'credit' ? 'text-black font-semibold opacity-80' : 'opacity-80'}`}>{adj.type === 'credit' ? '-' : ''}${parseFloat(adj.amount || 0).toFixed(2)} {adj.label}</p>)}
+                                                                            {line.adjustments.map(adj => <p key={adj.id} className={`text-xs tracking-tight ${adj.type === 'credit' ? 'text-black font-semibold opacity-80' : 'opacity-80'}`}>{formatAdjustment(adj)} {adj.label}</p>)}
                                                                             {line.protCost > 0 && <p className="text-xs font-medium opacity-80">${line.protCost}.00 Device protection</p>}
                                                                             {includeEstimatedTaxes && line.taxSurcharge > 0 && <p className="text-xs font-medium opacity-80">${line.taxSurcharge.toFixed(2)} Est. Taxes & Surcharges</p>}
                                                                         </div>
@@ -1384,7 +1407,7 @@ const App = ({ config }) => {
                                                                     {customerViewMode === 'detailed' ? (
                                                                         <div className="mt-1.5 space-y-0.5 border-l-2 border-black/10 pl-3 py-0.5">
                                                                             {multiDeviceProtection && <p className="text-xs font-medium opacity-80">${calculations.vmpCost.toFixed(2)} Multi-Device Protection</p>}
-                                                                            {accountAdjustments.map(adj => <p key={adj.id} className={`text-xs tracking-tight ${adj.type === 'credit' ? 'text-black font-semibold opacity-80' : 'opacity-80'}`}>{adj.type === 'credit' ? '-' : ''}${parseFloat(adj.amount || 0).toFixed(2)} {adj.label}</p>)}
+                                                                            {calculations.processedAccountAdjustments.map(adj => <p key={adj.id} className={`text-xs tracking-tight ${adj.type === 'credit' ? 'text-black font-semibold opacity-80' : 'opacity-80'}`}>{formatAdjustment(adj)} {adj.label}</p>)}
                                                                         </div>
                                                                     ) : <p className="text-[10px] font-medium opacity-80 mt-0.5 italic">Protection & Adjustments Applied</p>}
                                                                 </div>
@@ -1609,8 +1632,8 @@ const App = ({ config }) => {
             {(activeAdjLineId || showAccountAdj) && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => { setActiveAdjLineId(null); setShowAccountAdj(false); }}>
                     <div className="relative w-full max-w-lg bg-white rounded-[40px] overflow-hidden shadow-2xl" onClick={e => e.stopPropagation()}>
-                        <div className="p-10 border-b border-black/5 bg-stone-50 flex justify-between items-center"><h2 className="text-2xl font-black">{showAccountAdj ? 'Account Adjustments' : 'Line Adjustments'}</h2><button onClick={() => { setActiveAdjLineId(null); setShowAccountAdj(false); }} className="p-3 hover:bg-black/5 rounded-full"><Icon name="X" size={28}/></button></div>
-                        <div className="p-10 space-y-6 max-h-[60vh] overflow-y-auto">
+                        <div className="p-5 sm:p-10 border-b border-black/5 bg-stone-50 flex justify-between items-center"><h2 className="text-2xl font-black">{showAccountAdj ? 'Account Adjustments' : 'Line Adjustments'}</h2><button onClick={() => { setActiveAdjLineId(null); setShowAccountAdj(false); }} className="p-3 hover:bg-black/5 rounded-full"><Icon name="X" size={28}/></button></div>
+                        <div className="p-5 sm:p-10 space-y-6 max-h-[60vh] overflow-y-auto">
                             {!showAccountAdj && showAutoPayAdjustments && activeAdjustmentLine && (
                                 <div className="flex flex-col gap-4 bg-stone-50 p-6 rounded-3xl border border-black/5 text-black">
                                     <div className="flex gap-4 items-end text-black">
@@ -1627,12 +1650,35 @@ const App = ({ config }) => {
                                 </div>
                             )}
                             {(showAccountAdj ? accountAdjustments : lines.find(l => l.id === activeAdjLineId)?.adjustments || []).map((adj, i) => (
-                                <div key={adj.id} className="flex flex-col gap-4 bg-stone-50 p-6 rounded-3xl border border-black/5 text-black">
-                                    <div className="flex items-center justify-between gap-3">
+                                <div key={adj.id} className="flex flex-col gap-4 bg-stone-50 p-4 sm:p-6 rounded-3xl border border-black/5 text-black">
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
                                         <div className="flex gap-2 p-1 bg-black/5 rounded-xl self-start"><button onClick={() => updateAdjustment(i, { type: 'credit' })} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${adj.type === 'credit' ? 'bg-emerald-500 text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Credit</button><button onClick={() => updateAdjustment(i, { type: 'charge' })} className={`px-4 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${adj.type === 'charge' ? 'bg-black text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Charge</button></div>
-                                        <button onClick={() => copyAdjustmentToClipboard(adj, showAccountAdj ? 'account' : 'line')} title="Copy adjustment" aria-label="Copy adjustment" className="p-2.5 bg-white border border-black/10 text-black/35 hover:text-black hover:border-black/20 rounded-xl transition-colors"><Icon name="Copy" size={17} /></button>
+                                        <div className="flex items-center gap-1">
+                                            <button onClick={() => copyAdjustmentToClipboard(adj, showAccountAdj ? 'account' : 'line')} title="Copy adjustment" aria-label="Copy adjustment" className="p-2.5 bg-white border border-black/10 text-black/35 hover:text-black hover:border-black/20 rounded-xl transition-colors"><Icon name="Copy" size={17} /></button>
+                                            <button onClick={() => removeAdjustment(i)} aria-label="Remove adjustment" className="p-2.5 text-verizon-red hover:bg-red-50 rounded-lg transition-colors"><Icon name="Trash2" size={20}/></button>
+                                        </div>
                                     </div>
-                                    <div className="flex gap-4 items-end text-black"><div className="flex-grow space-y-1"><label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Label</label><input value={adj.label} onFocus={e => e.target.select()} placeholder="Adjustment Label" onChange={e => updateAdjustment(i, { label: e.target.value })} className="w-full bg-white border border-black/10 px-4 py-3 rounded-xl text-sm font-bold focus:border-black outline-none text-black" /></div><div className="w-28 space-y-1"><label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Amount</label><input type="number" inputMode="decimal" value={adj.amount} onWheel={e => e.currentTarget.blur()} onFocus={e => e.target.select()} placeholder="0.00" onChange={e => updateAdjustment(i, { amount: e.target.value })} className="w-full bg-white border border-black/10 px-4 py-3 rounded-xl text-sm font-bold focus:border-black outline-none text-black" /></div><button onClick={() => removeAdjustment(i)} className="p-3 text-verizon-red hover:bg-red-50 rounded-lg transition-colors"><Icon name="Trash2" size={20}/></button></div>
+                                    <div className="flex gap-2 items-end text-black">
+                                        <div className="min-w-0 flex-1 space-y-1">
+                                            <label className="text-[10px] font-bold uppercase tracking-widest opacity-40">Label</label>
+                                            <input value={adj.label} onFocus={e => e.target.select()} placeholder="Adjustment Label" onChange={e => updateAdjustment(i, { label: e.target.value })} className="w-full bg-white border border-black/10 px-4 py-3 rounded-xl text-sm font-bold focus:border-black outline-none text-black" />
+                                        </div>
+                                        <div className="w-[168px] shrink-0 space-y-1">
+                                            <div role="group" aria-label="Adjustment amount type" className="inline-flex items-center p-1 bg-black/5 rounded-xl text-[10px] font-bold uppercase">
+                                                <button type="button" onClick={() => updateAdjustment(i, { amountMode: 'amount' })} aria-pressed={adj.amountMode !== 'percentage'} className={`px-1.5 py-1.5 rounded-lg transition-all ${adj.amountMode !== 'percentage' ? 'bg-black text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>Amount</button>
+                                                <button type="button" onClick={() => updateAdjustment(i, { amountMode: 'percentage' })} aria-pressed={adj.amountMode === 'percentage'} className={`px-1.5 py-1.5 rounded-lg transition-all ${adj.amountMode === 'percentage' ? 'bg-black text-white shadow-sm' : 'text-black/40 hover:text-black'}`}>%</button>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <div className="relative min-w-0 flex-1">
+                                                    <input type="number" inputMode="decimal" step="0.01" aria-label={adj.amountMode === 'percentage' ? 'Adjustment percentage' : 'Adjustment amount'} value={adj.amount} onWheel={e => e.currentTarget.blur()} onFocus={e => e.target.select()} placeholder="0.00" onChange={e => updateAdjustment(i, { amount: e.target.value })} className={`w-full bg-white border border-black/10 pl-2 py-3 rounded-xl text-sm font-bold focus:border-black outline-none text-black ${adj.amountMode === 'percentage' ? 'pr-6' : 'pr-2'}`} />
+                                                    {adj.amountMode === 'percentage' && <span aria-hidden="true" className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-sm font-bold">%</span>}
+                                                </div>
+                                                {adj.amountMode === 'percentage' && (
+                                                    <input readOnly aria-label="Calculated adjustment amount" value={`$${(activeCalculatedAdjustments.find(adjustment => adjustment.id === adj.id)?.calculatedAmount || 0).toFixed(2)}`} className="w-20 min-w-0 shrink-0 bg-white border border-black/10 px-2 py-3 rounded-xl text-sm font-bold outline-none text-black/45 cursor-default" />
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             ))}
                             <div className="flex flex-row gap-4">
