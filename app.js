@@ -1063,7 +1063,7 @@ const App = ({ config }) => {
                             )}
                         </header>
 
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="quote-account-controls grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div className="bg-white p-5 border border-black/10 rounded-xl flex items-center justify-between shadow-sm">
                                 <div><p className="font-bold text-sm">Multi-Device Protection</p><p className="text-[11px] opacity-50 font-medium">${calculations.vmpCost.toFixed(2)}/mo total</p></div>
                                 <button onClick={() => setMultiDeviceProtection(!multiDeviceProtection)} className={`w-11 h-6 rounded-full relative transition-colors ${multiDeviceProtection ? 'bg-verizon-red' : 'bg-gray-300'}`}><div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${multiDeviceProtection ? 'right-1' : 'left-1'}`} /></button>
